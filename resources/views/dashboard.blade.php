@@ -35,5 +35,32 @@
                 </div>
             </x-card>
         </div>
+
+        <div class="grid gap-6 lg:grid-cols-3">
+            <x-card title="Approval Workflow" subtitle="Atasan, HRGA, dan ICT memproses antrian sesuai role">
+                <div class="space-y-3 text-sm text-ink-700">
+                    <p>Permintaan ICT: Unit Admin -> HRGA -> ICT Admin.</p>
+                    <p>Permohonan Email: Unit Admin -> HRGA -> ICT Admin.</p>
+                    <x-button :href="route('approvals.index')">Buka Approval</x-button>
+                </div>
+            </x-card>
+
+            <x-card title="Report & Export" subtitle="Rekap modul dengan filter tanggal, status, PDF, dan Excel">
+                <div class="space-y-3 text-sm text-ink-700">
+                    <p>Semua modul utama sudah bisa direkap dalam satu halaman report.</p>
+                    <x-button :href="route('reports.index')" variant="secondary">Buka Report</x-button>
+                </div>
+            </x-card>
+
+            <x-card title="Admin Tools" subtitle="User management, ping server, disposal asset, dan log CCTV">
+                <div class="space-y-3 text-sm text-ink-700">
+                    <p>ICT Admin dapat mengelola akun, cek host/port, dan mencatat maintenance CCTV.</p>
+                    <div class="flex flex-wrap gap-3">
+                        <x-button :href="route('tools.users.index')" variant="secondary">Kelola User</x-button>
+                        <x-button :href="route('tools.ping.index')" variant="secondary">Ping Server</x-button>
+                    </div>
+                </div>
+            </x-card>
+        </div>
     </div>
 </x-app-layout>

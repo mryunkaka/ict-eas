@@ -11,11 +11,11 @@
 [x] Master Asset baseline
 [x] Inventory baseline
 [x] Project Request baseline
-[ ] Approval workflow detail per role
-[ ] Report rekap ICT
-[ ] Export PDF / Excel per modul
-[ ] Tools Management User
-[ ] Tools Ping Server
-[ ] Disposal workflow detail
-[ ] CCTV maintenance log
-[ ] Feature test lengkap
+[x] Approval workflow detail per role
+[x] Report rekap ICT
+[x] Export PDF / Excel per modul
+[x] Tools Management User
+[x] Tools Ping Server
+[x] Disposal workflow detail
+[x] CCTV maintenance log
+[x] Feature test lengkap

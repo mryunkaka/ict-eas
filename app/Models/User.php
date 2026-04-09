@@ -83,4 +83,29 @@ class User extends Authenticatable
     {
         return $this->role === UserRole::SuperAdmin;
     }
+
+    public function isIctAdmin(): bool
+    {
+        return in_array($this->role, [UserRole::SuperAdmin, UserRole::IctAdmin], true);
+    }
+
+    public function isUnitAdmin(): bool
+    {
+        return in_array($this->role, [UserRole::SuperAdmin, UserRole::UnitAdmin], true);
+    }
+
+    public function isHrgaApprover(): bool
+    {
+        return in_array($this->role, [UserRole::SuperAdmin, UserRole::HrgaApprover], true);
+    }
+
+    public function canManageUsers(): bool
+    {
+        return $this->isIctAdmin();
+    }
+
+    public function canProcessApprovals(): bool
+    {
+        return $this->isUnitAdmin() || $this->isHrgaApprover() || $this->isIctAdmin();
+    }
 }

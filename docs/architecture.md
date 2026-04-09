@@ -17,9 +17,13 @@
 ## Struktur Modul
 - `app/Models`: entitas domain
 - `app/Http/Controllers/Form`: controller modul form
+- `app/Http/Controllers/Tools`: tool admin dan utilitas
 - `app/Http/Requests`: validasi per form
 - `resources/views/components`: design system Blade
 - `resources/views/forms`: halaman modul
+- `resources/views/approvals`: approval center
+- `resources/views/reports`: report dan export template
+- `resources/views/tools`: user management dan ping server
 - `docs`: dokumentasi, todo, checklist, status
 - `storage/app/sop-text`: hasil ekstraksi teks SOP sumber
 
@@ -36,3 +40,9 @@
 - SOP Standard Software/Hardware: asset menyimpan serial, spesifikasi, user, unit, lifecycle
 - SOP Disposal: lifecycle asset disiapkan untuk redistribusi, transfer, disposal
 - FMR-ICT: struktur form mengikuti permintaan fasilitas, perbaikan, berita acara, email
+
+## Workflow Tambahan
+- Approval center memakai role `unit_admin`, `hrga_approver`, `ict_admin`, `super_admin`
+- Report module mendukung filter per modul dan export `xlsx` / `pdf`
+- Asset lifecycle log menyimpan transfer, redistribusi, dan disposal
+- CCTV maintenance log menyimpan aktivitas perbaikan sampai status `resolved`

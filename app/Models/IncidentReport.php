@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class IncidentReport extends Model
 {
@@ -44,5 +45,10 @@ class IncidentReport extends Model
     public function asset(): BelongsTo
     {
         return $this->belongsTo(Asset::class);
+    }
+
+    public function maintenanceLogs(): HasMany
+    {
+        return $this->hasMany(CctvMaintenanceLog::class, 'incident_report_id')->latest('performed_at');
     }
 }

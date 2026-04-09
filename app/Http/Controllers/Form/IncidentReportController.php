@@ -8,6 +8,7 @@ use App\Models\Asset;
 use App\Models\IncidentReport;
 use App\Support\UnitScope;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class IncidentReportController extends Controller
@@ -51,5 +52,40 @@ class IncidentReportController extends Controller
         ]);
 
         return redirect()->route('forms.incidents.index')->with('status', 'Berita acara / insiden berhasil disimpan.');
+    }
+
+    public function show(IncidentReport $incident): View
+    {
+        $user = auth()->user();
+
+        abort_unless($user->isIctAdmin() || $incident->unit_id === $user->unit_id, 403);
+
+        $incident->load(['asset', 'reporter', 'maintenanceLogs.handler']);
+
+        return view('forms.incident-reports.show', compact('incident'));
+    }
+
+    public function storeMaintenance(Request $request, IncidentReport $incident): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->isIctAdmin(), 403);
+        abort_unless($incident->incident_type === 'cctv_outage', 404);
+
+        $validated = $request->validate([
+            'activity_type' => ['required', 'in:initial_response,diagnostic,repair,verification,reopen'],
+            'description' => ['required', 'string'],
+            'status_after' => ['required', 'in:open,on_progress,resolved'],
+            'performed_at' => ['required', 'date'],
+        ]);
+
+        $incident->maintenanceLogs()->create([
+            'handled_by_id' => $user->id,
+            ...$validated,
+        ]);
+
+        $incident->update(['status' => $validated['status_after']]);
+
+        return back()->with('status', 'Log maintenance CCTV berhasil ditambahkan.');
     }
 }

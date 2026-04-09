@@ -17,7 +17,7 @@ class InventoryController extends Controller
         $items = InventoryItem::query()
             ->with('unit')
             ->when($scope !== 'all', fn ($query) => $query->where('scope', $scope))
-            ->when(!$user->isSuperAdmin() && $scope !== 'eas', fn ($query) => $query->where('unit_id', $user->unit_id))
+            ->when(! $user->isSuperAdmin() && $scope !== 'eas', fn ($query) => $query->where('unit_id', $user->unit_id))
             ->latest()
             ->paginate(15)
             ->withQueryString();

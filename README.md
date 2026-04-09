@@ -10,6 +10,12 @@ Baseline project Sistem Informasi ICT EAS berbasis Laravel 13.
 - Master Asset
 - Pengajuan Project
 - Inventory / stok
+- Approval Center per role
+- Report dan export Excel/PDF
+- Tools Management User
+- Tools Ping Server
+- Disposal / transfer workflow asset
+- CCTV maintenance log
 
 ## Dokumentasi
 - `docs/architecture.md`

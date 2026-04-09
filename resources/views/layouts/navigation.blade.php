@@ -11,10 +11,26 @@
                 </div>
 
                 <!-- Navigation Links -->
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                <div class="hidden space-x-6 sm:-my-px sm:ms-10 sm:flex sm:items-center">
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
+                    @if (Auth::user()->canProcessApprovals())
+                        <x-nav-link :href="route('approvals.index')" :active="request()->routeIs('approvals.*')">
+                            Approval
+                        </x-nav-link>
+                    @endif
+                    <x-nav-link :href="route('reports.index')" :active="request()->routeIs('reports.*')">
+                        Report
+                    </x-nav-link>
+                    @if (Auth::user()->canManageUsers())
+                        <x-nav-link :href="route('tools.users.index')" :active="request()->routeIs('tools.users.*')">
+                            User
+                        </x-nav-link>
+                        <x-nav-link :href="route('tools.ping.index')" :active="request()->routeIs('tools.ping.*')">
+                            Ping
+                        </x-nav-link>
+                    @endif
                 </div>
             </div>
 
@@ -70,6 +86,22 @@
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
+            @if (Auth::user()->canProcessApprovals())
+                <x-responsive-nav-link :href="route('approvals.index')" :active="request()->routeIs('approvals.*')">
+                    Approval
+                </x-responsive-nav-link>
+            @endif
+            <x-responsive-nav-link :href="route('reports.index')" :active="request()->routeIs('reports.*')">
+                Report
+            </x-responsive-nav-link>
+            @if (Auth::user()->canManageUsers())
+                <x-responsive-nav-link :href="route('tools.users.index')" :active="request()->routeIs('tools.users.*')">
+                    User
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('tools.ping.index')" :active="request()->routeIs('tools.ping.*')">
+                    Ping
+                </x-responsive-nav-link>
+            @endif
         </div>
 
         <!-- Responsive Settings Options -->

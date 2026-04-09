@@ -13,6 +13,7 @@
                     <th class="px-4 py-3">Unit</th>
                     <th class="px-4 py-3">Serial</th>
                     <th class="px-4 py-3">Lifecycle</th>
+                    <th class="px-4 py-3">Aksi</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-ink-100">
@@ -22,9 +23,10 @@
                         <td class="px-4 py-3">{{ $asset->unit?->name }}</td>
                         <td class="px-4 py-3">{{ $asset->serial_number }}</td>
                         <td class="px-4 py-3"><x-badge>{{ strtoupper($asset->lifecycle_status) }}</x-badge></td>
+                        <td class="px-4 py-3"><x-button :href="route('forms.assets.show', $asset)" variant="secondary">Detail</x-button></td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" class="px-4 py-6 text-center text-ink-500">Belum ada asset.</td></tr>
+                    <tr><td colspan="5" class="px-4 py-6 text-center text-ink-500">Belum ada asset.</td></tr>
                 @endforelse
             </tbody>
         </x-table>

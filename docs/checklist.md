@@ -10,9 +10,9 @@
 [✔] Dokumentasi arsitektur
 [✔] Flow system
 [✔] Database schema docs
-[ ] Approval detail dan action screen
-[ ] Report module
-[ ] Export integration
-[ ] Role access test
-[ ] Form validation test
+[x] Approval detail dan action screen
+[x] Report module
+[x] Export integration
+[x] Role access test
+[x] Form validation test
 [ ] DB migration verification di environment lokal
