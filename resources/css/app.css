@@ -1,0 +1,34 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Space Grotesk', var(--font-sans);
+
+    --color-ink-50: #f6f8fb;
+    --color-ink-100: #e8edf4;
+    --color-ink-200: #d4dde8;
+    --color-ink-500: #58708f;
+    --color-ink-700: #30445e;
+    --color-ink-900: #112033;
+
+    --color-brand-50: #effaf7;
+    --color-brand-100: #d6f4ea;
+    --color-brand-500: #0f9f7f;
+    --color-brand-700: #0b725b;
+
+    --color-accent-100: #fff1cc;
+    --color-accent-500: #d99100;
+    --color-danger-100: #fde1df;
+    --color-danger-500: #d65245;
+}
+
+@layer base {
+    body {
+        @apply bg-[linear-gradient(180deg,#f6f8fb_0%,#edf4f1_100%)] text-ink-900 antialiased;
+    }
+}
