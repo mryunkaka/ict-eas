@@ -6,9 +6,9 @@ use Tests\TestCase;
 
 class PublicPagesTest extends TestCase
 {
-    public function test_welcome_page_is_available(): void
+    public function test_root_redirects_to_login(): void
     {
-        $this->get('/')->assertOk();
+        $this->get('/')->assertRedirect('/login');
     }
 
     public function test_auth_pages_are_available(): void

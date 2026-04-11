@@ -16,10 +16,10 @@
     --color-ink-700: #30445e;
     --color-ink-900: #112033;
 
-    --color-brand-50: #effaf7;
-    --color-brand-100: #d6f4ea;
-    --color-brand-500: #0f9f7f;
-    --color-brand-700: #0b725b;
+    --color-brand-50: #fbefef;
+    --color-brand-100: #f5d9da;
+    --color-brand-500: #9f2431;
+    --color-brand-700: #6f1721;
 
     --color-accent-100: #fff1cc;
     --color-accent-500: #d99100;
@@ -28,7 +28,188 @@
 }
 
 @layer base {
+    [x-cloak] {
+        display: none !important;
+    }
+
+    html,
     body {
-        @apply bg-[linear-gradient(180deg,#f6f8fb_0%,#edf4f1_100%)] text-ink-900 antialiased;
+        @apply min-h-screen min-h-[100dvh] overflow-hidden bg-[linear-gradient(180deg,#f7f8fb_0%,#f4efef_100%)] text-ink-900 antialiased;
+    }
+}
+
+@layer components {
+    .ui-shell {
+        @apply flex min-h-screen min-h-[100dvh] overflow-hidden items-center justify-center bg-[radial-gradient(circle_at_top_left,rgba(159,36,49,0.14),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(17,32,51,0.12),transparent_28%),linear-gradient(180deg,#f7f8fb_0%,#f4efef_100%)];
+    }
+
+    .ui-brand-mark {
+        @apply inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-ink-900 p-2 text-white shadow-[0_18px_40px_-20px_rgba(17,32,51,0.8)];
+    }
+
+    .ui-auth-wrap {
+        @apply w-full max-w-xl px-4 py-8 sm:px-6 lg:px-8;
+    }
+
+    .ui-login-wrap {
+        @apply flex min-h-screen min-h-[100dvh] w-full items-center justify-center overflow-hidden px-4 py-3 sm:px-6 sm:py-4;
+    }
+
+    .ui-login-card {
+        @apply grid h-[calc(100dvh-1.5rem)] w-full max-w-[31.5rem] grid-rows-[9.9rem_minmax(0,1fr)] overflow-hidden rounded-[2rem] border border-white/70 bg-white/92 shadow-[0_24px_60px_-28px_rgba(17,32,51,0.28)] backdrop-blur sm:h-[min(45.5rem,calc(100dvh-1.5rem))];
+    }
+
+    .ui-login-visual {
+        @apply relative flex items-start justify-center overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(213,82,69,0.2),transparent_34%),linear-gradient(180deg,rgba(24,28,48,0.99),rgba(62,41,58,0.96)_55%,rgba(127,33,45,0.94))] px-5 py-3 sm:px-7 sm:py-3;
+    }
+
+    .ui-login-form {
+        @apply flex min-h-0 flex-col bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(251,248,248,0.98))] px-5 py-4 sm:px-6 sm:py-4;
+    }
+
+    .ui-login-content {
+        @apply flex h-full min-h-0 flex-col justify-center;
+    }
+
+    .ui-auth-flip-scene {
+        perspective: 1400px;
+        @apply h-full min-h-0;
+    }
+
+    .ui-auth-flip-scene.is-register {
+        @apply overflow-hidden;
+    }
+
+    .ui-auth-flip-scene.is-flipped .ui-auth-flip-card {
+        transform: rotateY(180deg);
+    }
+
+    .ui-auth-flip-card {
+        transform-style: preserve-3d;
+        transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+        @apply relative h-full min-h-0;
+    }
+
+    .ui-auth-face {
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        @apply absolute inset-0 flex h-full min-h-0 flex-col justify-center;
+    }
+
+    .ui-auth-face-back {
+        transform: rotateY(180deg);
+    }
+
+    .ui-login-stack {
+        @apply flex min-h-0 flex-col gap-3;
+    }
+
+    .ui-login-stack-register {
+        @apply h-full overflow-y-auto pr-1;
+    }
+
+    .ui-login-stack-register::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .ui-login-stack-register::-webkit-scrollbar-thumb {
+        background: rgba(159, 36, 49, 0.28);
+        border-radius: 999px;
+    }
+
+    .ui-login-inline {
+        @apply grid grid-cols-[minmax(0,1fr)] gap-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center;
+    }
+
+    .ui-login-actions {
+        @apply grid gap-2.5;
+    }
+
+    .ui-login-kicker {
+        @apply border-white/16 bg-white/8 px-3 py-0.5 text-[clamp(0.6rem,0.9vw,0.74rem)] tracking-[0.22em] text-white/90;
+    }
+
+    .ui-login-brand-mark {
+        @apply h-[3.45rem] w-[3.45rem] rounded-[1.15rem] border border-white/85 bg-white p-1.5 shadow-[0_18px_45px_-22px_rgba(10,20,35,0.95)] sm:h-[3.9rem] sm:w-[3.9rem];
+    }
+
+    .ui-login-hero-title {
+        @apply whitespace-nowrap font-display text-[clamp(1rem,1.85vw,1.28rem)] leading-none font-semibold tracking-[-0.03em] text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.22)];
+    }
+
+    .ui-login-hero-subtitle {
+        @apply text-[clamp(0.52rem,0.72vw,0.62rem)] font-medium uppercase tracking-[0.14em] text-white/72;
+    }
+
+    .ui-login-input {
+        @apply h-11 rounded-[1rem] border-ink-200/90 bg-white/96 px-4 py-0 text-[0.93rem] text-ink-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] placeholder:text-ink-500/90 focus:border-brand-500;
+    }
+
+    .ui-login-select {
+        @apply pr-10;
+    }
+
+    .ui-login-primary-button {
+        @apply h-11 w-full rounded-[1rem] px-4 py-0 text-[0.93rem] font-semibold shadow-[0_12px_24px_-16px_rgba(17,32,51,0.9)];
+    }
+
+    .ui-login-secondary-button {
+        @apply inline-flex h-11 w-full rounded-[1rem] px-4 py-0 text-[0.92rem] font-semibold sm:w-auto sm:min-w-[10.5rem];
+    }
+
+    .ui-login-register-button {
+        @apply sm:min-w-0;
+    }
+
+    .ui-login-switch {
+        @apply inline-flex h-11 w-full items-center justify-center rounded-[1rem] border border-brand-100 bg-brand-50 text-[0.92rem] font-semibold text-brand-700 transition hover:bg-brand-100/70;
+    }
+
+    .ui-login-checkbox {
+        @apply min-h-11 rounded-[1rem] border border-transparent px-0 py-0;
+    }
+
+    .ui-login-checkbox input {
+        @apply h-[1.05rem] w-[1.05rem] rounded border-ink-200;
+    }
+
+    .ui-login-checkbox span {
+        @apply text-[0.92rem] font-medium text-ink-700;
+    }
+
+    .ui-login-content label > span:first-child {
+        @apply text-[0.94rem] font-semibold text-ink-900;
+    }
+
+    .ui-login-content label {
+        @apply space-y-1.5;
+    }
+
+    .ui-auth-card {
+        @apply overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 shadow-[0_24px_60px_-28px_rgba(17,32,51,0.28)] backdrop-blur;
+    }
+
+    .ui-auth-visual {
+        @apply relative overflow-hidden border-b border-white/40 bg-[linear-gradient(135deg,rgba(17,32,51,0.96),rgba(48,68,94,0.92)_58%,rgba(15,159,127,0.88))] px-6 py-8 text-white sm:px-8 sm:py-10;
+    }
+
+    .ui-auth-form {
+        @apply p-6 sm:p-8;
+    }
+
+    .ui-kicker {
+        @apply inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/88;
+    }
+
+    .ui-dot-grid {
+        @apply pointer-events-none absolute inset-auto right-0 top-0 h-36 w-36 translate-x-6 -translate-y-6 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.18)_1px,transparent_1px)] [background-size:14px_14px] opacity-60;
+    }
+
+    .ui-auth-logo-stage {
+        @apply relative mt-6 flex items-center justify-center rounded-[1.75rem] border border-white/12 bg-white/8 px-6 py-8 backdrop-blur;
+    }
+
+    .ui-auth-logo-ring {
+        @apply absolute h-36 w-36 rounded-full border border-white/18;
     }
 }

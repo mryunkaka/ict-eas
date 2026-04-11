@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Auth;
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
-use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -13,13 +12,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
-use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
 {
-    public function create(): View
+    public function create(): RedirectResponse
     {
-        return view('auth.register');
+        return redirect()->route('login', ['mode' => 'register']);
     }
 
     /**
@@ -27,14 +25,15 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        $request->validateWithBag('register', [
+            'unit_id' => ['required', 'integer', 'exists:units,id'],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
         $user = User::create([
-            'unit_id' => Unit::query()->value('id'),
+            'unit_id' => $request->integer('unit_id'),
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),

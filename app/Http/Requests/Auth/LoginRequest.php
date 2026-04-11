@@ -12,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
 {
+    protected $errorBag = 'login';
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -45,9 +47,12 @@ class LoginRequest extends FormRequest
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
-            throw ValidationException::withMessages([
+            $exception = ValidationException::withMessages([
                 'email' => trans('auth.failed'),
             ]);
+            $exception->errorBag = 'login';
+
+            throw $exception;
         }
 
         RateLimiter::clear($this->throttleKey());
@@ -68,12 +73,15 @@ class LoginRequest extends FormRequest
 
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
-        throw ValidationException::withMessages([
+        $exception = ValidationException::withMessages([
             'email' => trans('auth.throttle', [
                 'seconds' => $seconds,
                 'minutes' => ceil($seconds / 60),
             ]),
         ]);
+        $exception->errorBag = 'login';
+
+        throw $exception;
     }
 
     /**

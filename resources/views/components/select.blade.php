@@ -1,4 +1,4 @@
-@props(['label' => null, 'name', 'options' => [], 'placeholder' => 'Pilih data', 'value' => null])
+@props(['label' => null, 'name', 'options' => [], 'placeholder' => 'Pilih data', 'value' => null, 'bag' => 'default'])
 
 <label class="block space-y-2">
     @if ($label)
@@ -12,7 +12,7 @@
         @endforeach
     </select>
 
-    @error($name)
+    @error($name, $bag)
         <span class="text-sm text-danger-500">{{ $message }}</span>
     @enderror
 </label>

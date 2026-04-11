@@ -15,7 +15,7 @@ use App\Http\Controllers\Tools\PingServerController;
 use App\Http\Controllers\Tools\UserManagementController;
 use Illuminate\Support\Facades\Route;
 
-Route::view('/', 'welcome');
+Route::redirect('/', '/login');
 
 Route::get('/dashboard', DashboardController::class)->middleware(['auth', 'verified'])->name('dashboard');
 
