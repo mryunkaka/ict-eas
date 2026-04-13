@@ -22,6 +22,8 @@ class IctRequestItem extends Model
         'photo_path',
         'photo_size',
         'ppnk_document_id',
+        'audit_status',
+        'audit_reason',
     ];
 
     public function ictRequest(): BelongsTo

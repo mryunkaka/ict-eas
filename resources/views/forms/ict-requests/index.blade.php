@@ -24,6 +24,7 @@
             'edit_url' => route('forms.ict-requests.edit', $request),
             'upload_signed_url' => route('approvals.ict.update', $request),
             'upload_ppnk_url' => route('forms.ict-requests.ppnk.store', $request),
+            'verify_audit_url' => route('forms.ict-requests.verify-audit', $request),
             'priority' => strtoupper($request->priority),
             'raw_status' => $request->status,
             'status' => $request->statusLabel(),
@@ -31,7 +32,7 @@
             'requires_signature_upload' => $request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path,
             'can_upload_signed_pdf' => $request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && auth()->user()->isIctAdmin() && ! $request->final_signed_pdf_path,
             'can_manage_ppnk' => $request->status === 'progress_ppnk' && auth()->user()->isIctAdmin(),
-            'is_locked_after_asmen' => in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'completed'], true),
+            'is_locked_after_asmen' => in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'completed'], true),
             'quotation_mode' => $request->quotation_mode,
             'created_at' => optional($request->created_at)->format('d M Y H:i'),
             'final_signed_pdf_name' => $request->final_signed_pdf_name,
@@ -57,6 +58,8 @@
                 'ppnk_attachment_name' => $item->ppnkDocument?->attachment_name,
                 'ppnk_attachment_url' => $item->ppnkDocument?->attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($item->ppnkDocument->attachment_path) : null,
                 'ppnk_attachment_is_image' => str_starts_with((string) $item->ppnkDocument?->attachment_mime, 'image/'),
+                'audit_status' => $item->audit_status,
+                'audit_reason' => $item->audit_reason,
                 'quotations' => $item->quotations->map(fn ($quotation) => [
                     'vendor_name' => $quotation->vendor_name,
                     'attachment_name' => $quotation->attachment_name,
@@ -78,6 +81,7 @@
             openDetailId: null,
             printTarget: null,
             ppnkTarget: null,
+            auditTarget: null,
             openPrintModal(id) {
                 const targetId = String(id);
                 if ((this.detailMap[targetId]?.print_count ?? 0) > 0) {
@@ -108,6 +112,16 @@
                 this.ppnkTarget = null;
                 if (this.$refs.ppnkForm) {
                     this.$refs.ppnkForm.reset();
+                }
+            },
+            openAuditModal(id) {
+                const targetId = String(id);
+                this.auditTarget = targetId;
+            },
+            closeAuditModal() {
+                this.auditTarget = null;
+                if (this.$refs.auditForm) {
+                    this.$refs.auditForm.reset();
                 }
             },
             get allSelectedOnPage() {
@@ -623,96 +637,53 @@
             x-on:keydown.escape.window="closePpnkModal()"
             class="fixed inset-0 z-[70] flex items-center justify-center bg-ink-900/50 p-4"
         >
-            <div class="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
-                <div class="flex items-start justify-between gap-4">
-                    <div class="p-6 pb-0">
-                        <h3 class="font-display text-xl font-semibold text-ink-900">Upload Data PPNK / PPK</h3>
+            <div class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+                <div class="flex items-start justify-between gap-4 border-b border-ink-100 px-5 py-4">
+                    <div>
+                        <h3 class="font-display text-lg font-semibold text-ink-900">Upload Data PPNK / PPK</h3>
                         <p class="mt-1 text-sm text-ink-500" x-text="detailMap[ppnkTarget]?.subject || ''"></p>
-                        <p class="mt-2 text-xs text-ink-500">Isi nomor per barang. Jika nomor sama, cukup upload file pada salah satu baris dengan nomor yang sama.</p>
                     </div>
-                    <button type="button" x-on:click="closePpnkModal()" class="m-6 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-ink-200 text-ink-600 transition hover:bg-ink-50">
-                        <x-heroicon-o-x-mark class="h-5 w-5" />
+                    <button type="button" x-on:click="closePpnkModal()" class="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-ink-200 text-ink-600 transition hover:bg-ink-50">
+                        <x-heroicon-o-x-mark class="h-4 w-4" />
                     </button>
                 </div>
 
                 <form x-ref="ppnkForm" method="POST" enctype="multipart/form-data" class="flex min-h-0 flex-1 flex-col">
                     @csrf
 
-                    <div class="px-6 pb-4">
-                        <div class="hidden overflow-x-auto rounded-3xl border border-ink-100 md:block">
-                        <table class="min-w-full text-sm">
-                            <thead class="bg-ink-50 text-left text-ink-500">
-                                <tr>
-                                    <th class="px-4 py-3">Nama Barang</th>
-                                    <th class="px-4 py-3">Nomor PPNK / PPK</th>
-                                    <th class="px-4 py-3">Upload Berkas</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-ink-100">
-                                <template x-for="(item, index) in detailMap[ppnkTarget]?.items ?? []" :key="`ppnk-${item.id}`">
-                                    <tr class="align-top">
-                                        <td class="px-4 py-3">
-                                            <input type="hidden" :name="`items[${index}][item_id]`" :value="item.id" />
-                                            <div class="font-semibold text-ink-900" x-text="item.item_name"></div>
-                                            <div class="mt-1 text-xs text-ink-500" x-text="item.brand_type || item.item_category || '-'"></div>
-                                            <template x-if="item.ppnk_attachment_name">
-                                                <div class="mt-2 text-xs text-amber-700">
-                                                    File saat ini:
-                                                    <a :href="item.ppnk_attachment_url" target="_blank" class="font-semibold hover:underline" x-text="item.ppnk_attachment_name"></a>
-                                                </div>
-                                            </template>
-                                        </td>
-                                        <td class="px-4 py-3">
+                    <div class="flex-1 overflow-y-auto px-5 py-4">
+                        <p class="mb-4 text-xs text-ink-500">Isi nomor per barang. Jika nomor sama, cukup upload file pada salah satu baris dengan nomor yang sama.</p>
+
+                        <div class="space-y-3">
+                            <template x-for="(item, index) in detailMap[ppnkTarget]?.items ?? []" :key="`ppnk-${item.id}`">
+                                <div class="rounded-2xl border border-ink-100 bg-ink-50/50 p-4">
+                                    <div class="font-semibold text-ink-900" x-text="item.item_name"></div>
+                                    <div class="mt-1 text-xs text-ink-500" x-text="item.brand_type || item.item_category || '-'"></div>
+
+                                    <div class="mt-3 grid gap-3 md:grid-cols-2">
+                                        <div>
+                                            <label class="block text-xs font-medium text-ink-600">Nomor PPNK / PPK</label>
                                             <input
                                                 type="text"
                                                 :name="`items[${index}][ppnk_number]`"
                                                 :value="defaultPpnkNumber(index)"
                                                 placeholder="Contoh: PPNK-001/ICT/2026"
-                                                class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                             />
-                                        </td>
-                                        <td class="px-4 py-3">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-ink-600">Upload Berkas</label>
                                             <input
                                                 type="file"
                                                 :name="`items[${index}][ppnk_attachment]`"
                                                 accept=".pdf,.jpg,.jpeg,.png,.webp"
-                                                class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition file:mr-4 file:rounded-xl file:border-0 file:bg-ink-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
+                                                class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
                                             />
-                                            <p class="mt-2 text-xs text-ink-500">Jika nomor PPNK/PPK sama dengan barang lain, cukup upload file pada salah satu baris dengan nomor yang sama.</p>
-                                        </td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
-                        </div>
+                                        </div>
+                                    </div>
 
-                        <div class="space-y-4 md:hidden">
-                            <template x-for="(item, index) in detailMap[ppnkTarget]?.items ?? []" :key="`ppnk-mobile-${item.id}`">
-                                <div class="rounded-3xl border border-ink-100 p-4">
-                                    <input type="hidden" :name="`items[${index}][item_id]`" :value="item.id" />
-                                    <div class="font-semibold text-ink-900" x-text="item.item_name"></div>
-                                    <div class="mt-1 text-xs text-ink-500" x-text="item.brand_type || item.item_category || '-'"></div>
-                                    <label class="mt-4 block space-y-2">
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-ink-400">Nomor PPNK / PPK</span>
-                                        <input
-                                            type="text"
-                                            :name="`items[${index}][ppnk_number]`"
-                                            :value="defaultPpnkNumber(index)"
-                                            placeholder="Contoh: PPNK-001/ICT/2026"
-                                            class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-brand-500"
-                                        />
-                                    </label>
-                                    <label class="mt-4 block space-y-2">
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-ink-400">Upload Berkas</span>
-                                        <input
-                                            type="file"
-                                            :name="`items[${index}][ppnk_attachment]`"
-                                            accept=".pdf,.jpg,.jpeg,.png,.webp"
-                                            class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition file:mr-4 file:rounded-xl file:border-0 file:bg-ink-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
-                                        />
-                                    </label>
                                     <template x-if="item.ppnk_attachment_name">
-                                        <div class="mt-3 text-xs text-amber-700">
+                                        <div class="mt-2 text-xs text-amber-700">
                                             File saat ini:
                                             <a :href="item.ppnk_attachment_url" target="_blank" class="font-semibold hover:underline" x-text="item.ppnk_attachment_name"></a>
                                         </div>
@@ -722,13 +693,19 @@
                         </div>
                     </div>
 
-                    <div class="border-t border-ink-100 px-6 py-4">
-                        <div class="flex flex-col gap-3 text-xs text-ink-500 sm:flex-row sm:items-center sm:justify-between">
-                        <p>Berkas dapat berupa PDF atau gambar. Nomor yang sama akan memakai satu dokumen yang sama di database dan storage.</p>
-                        <div class="flex justify-end gap-3">
-                            <x-button type="button" variant="secondary" x-on:click="closePpnkModal()">Batal</x-button>
-                            <x-button type="submit">Simpan PPNK / PPK</x-button>
-                        </div>
+                    <div class="border-t border-ink-100 px-5 py-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p class="text-xs text-ink-500">Berkas dapat berupa PDF atau gambar. Nomor yang sama akan memakai satu dokumen yang sama.</p>
+                            <div class="flex flex-wrap justify-end gap-2">
+                                <x-button type="button" variant="secondary" x-on:click="closePpnkModal()" class="px-4 py-2.5">Batal</x-button>
+                                <x-button type="submit" class="px-4 py-2.5">Simpan PPNK / PPK</x-button>
+                                <template x-if="detailMap[ppnkTarget]?.raw_status === 'progress_ppnk'">
+                                    <button type="button" x-on:click="closePpnkModal(); openAuditModal(ppnkTarget)" class="inline-flex items-center justify-center rounded-2xl bg-success-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-success-700">
+                                        <x-heroicon-o-check-circle class="mr-2 h-4 w-4" />
+                                        <span>PPNK Sudah Lengkap</span>
+                                    </button>
+                                </template>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -754,6 +731,89 @@
                     <x-button type="button" variant="secondary" x-on:click="closePrintModal()">Batal</x-button>
                     <x-button type="button" x-on:click="submitPrint()">Print</x-button>
                 </div>
+            </div>
+        </div>
+
+        <div
+            x-show="auditTarget"
+            x-cloak
+            x-transition.opacity.duration.200ms
+            x-on:keydown.escape.window="closeAuditModal()"
+            class="fixed inset-0 z-[70] flex items-center justify-center bg-ink-900/50 p-4"
+        >
+            <div class="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+                <div class="flex items-start justify-between gap-4 border-b border-ink-100 px-5 py-4">
+                    <div>
+                        <h3 class="font-display text-lg font-semibold text-ink-900">Verifikasi Audit PPNK</h3>
+                        <p class="mt-1 text-sm text-ink-500" x-text="detailMap[auditTarget]?.subject || ''"></p>
+                    </div>
+                    <button type="button" x-on:click="closeAuditModal()" class="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-ink-200 text-ink-600 transition hover:bg-ink-50">
+                        <x-heroicon-o-x-mark class="h-4 w-4" />
+                    </button>
+                </div>
+
+                <form x-ref="auditForm" method="POST" :action="detailMap[auditTarget]?.verify_audit_url" enctype="multipart/form-data" class="flex min-h-0 flex-1 flex-col">
+                    @csrf
+
+                    <div class="flex-1 overflow-y-auto px-5 py-4">
+                        <p class="mb-4 text-xs text-ink-500">Verifikasi setiap barang: pilih Disetujui atau Takeout. Barang yang di-takeout akan dikeluarkan dari proses.</p>
+
+                        <div class="space-y-3">
+                            <template x-for="(item, index) in detailMap[auditTarget]?.items ?? []" :key="`audit-${item.id}`">
+                                <div class="rounded-2xl border border-ink-100 bg-ink-50/50 p-4">
+                                    <div class="grid gap-4 md:grid-cols-3">
+                                        <div class="md:col-span-1">
+                                            <div class="font-semibold text-ink-900" x-text="item.item_name"></div>
+                                            <div class="mt-1 text-xs text-ink-500">
+                                                <span x-text="item.item_category || '-'"></span>
+                                                <span>•</span>
+                                                <span x-text="`${item.quantity} ${item.unit || ''}`"></span>
+                                            </div>
+                                            <div class="mt-0.5 text-xs text-ink-400" x-text="item.brand_type || '-'"></div>
+                                        </div>
+
+                                        <div class="md:col-span-2">
+                                            <label class="block text-xs font-medium text-ink-600">Status Audit</label>
+                                            <div class="mt-2 flex gap-4">
+                                                <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 transition hover:bg-green-100 has-[:checked]:border-green-500 has-[:checked]:bg-green-100 has-[:checked]:ring-2 has-[:checked]:ring-green-500/30">
+                                                    <input type="radio" :name="`items[${index}][audit_status]`" value="approved" checked class="h-4 w-4 border-green-600 text-green-600 focus:ring-green-500" />
+                                                    <span class="text-sm font-semibold text-green-700">Disetujui</span>
+                                                </label>
+                                                <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 transition hover:bg-red-100 has-[:checked]:border-red-500 has-[:checked]:bg-red-100 has-[:checked]:ring-2 has-[:checked]:ring-red-500/30">
+                                                    <input type="radio" :name="`items[${index}][audit_status]`" value="takeout" class="h-4 w-4 border-red-600 text-red-600 focus:ring-red-500" />
+                                                    <span class="text-sm font-semibold text-red-700">Takeout</span>
+                                                </label>
+                                            </div>
+
+                                            <label class="mt-3 block">
+                                                <span class="block text-xs font-medium text-ink-600">Alasan / Keterangan</span>
+                                                <textarea
+                                                    :name="`items[${index}][audit_reason]`"
+                                                    rows="2"
+                                                    placeholder="Alasan takeout atau catatan verifikasi"
+                                                    class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                ></textarea>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-ink-100 px-5 py-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p class="text-xs text-ink-500">Setelah submit, status berubah menjadi Progress PPM. Barang yang di-takeout tidak diproses.</p>
+                            <div class="flex justify-end gap-2">
+                                <x-button type="button" variant="secondary" x-on:click="closeAuditModal()" class="px-4 py-2.5">Batal</x-button>
+                                <x-button type="submit" x-on:click="if (!confirm('Yakin submit verifikasi audit? Barang yang di-takeout tidak bisa diproses.')) { $event.preventDefault(); }" class="px-4 py-2.5">
+                                    <x-heroicon-o-check-circle class="mr-2 h-4 w-4" />
+                                    Submit Verifikasi
+                                </x-button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

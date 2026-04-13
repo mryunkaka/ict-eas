@@ -430,6 +430,53 @@ class IctRequestController extends Controller
         return back()->with('status', 'Data PPNK/PPK per barang berhasil disimpan.');
     }
 
+    public function verifyAuditPpnk(Request $request, IctRequest $ictRequest): RedirectResponse
+    {
+        abort_unless($request->user()->isIctAdmin(), 403);
+        abort_unless($ictRequest->status === 'progress_verifikasi_audit', 403);
+
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item_id' => ['required', 'integer'],
+            'items.*.audit_status' => ['required', 'in:takeout,approved'],
+            'items.*.audit_reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $ictRequest->loadMissing(['items']);
+
+        $itemsById = $ictRequest->items->keyBy('id');
+        $takeoutCount = 0;
+        $approvedCount = 0;
+
+        foreach ($validated['items'] as $itemData) {
+            $item = $itemsById->get($itemData['item_id']);
+
+            if (! $item) {
+                continue;
+            }
+
+            $item->update([
+                'audit_status' => $itemData['audit_status'],
+                'audit_reason' => trim($itemData['audit_reason'] ?? ''),
+            ]);
+
+            if ($itemData['audit_status'] === 'takeout') {
+                $takeoutCount++;
+            } else {
+                $approvedCount++;
+            }
+        }
+
+        // Update status ke progress_ppm setelah semua item diverifikasi
+        $ictRequest->update([
+            'status' => 'progress_ppm',
+        ]);
+
+        $message = "Verifikasi audit selesai. {$approvedCount} barang disetujui, {$takeoutCount} barang di-takeout.";
+
+        return back()->with('status', $message);
+    }
+
     protected function buildSubject(string $category, string $itemName): string
     {
         $categoryLabel = match ($category) {

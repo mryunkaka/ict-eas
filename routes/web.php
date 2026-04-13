@@ -30,6 +30,7 @@ Route::middleware('auth')->group(function () {
         Route::get('ict-requests/{ictRequest}/pdf', [IctRequestController::class, 'pdf'])->name('ict-requests.pdf');
         Route::post('ict-requests/{ictRequest}/print', [IctRequestController::class, 'print'])->name('ict-requests.print');
         Route::post('ict-requests/{ictRequest}/ppnk', [IctRequestController::class, 'storePpnk'])->name('ict-requests.ppnk.store');
+        Route::post('ict-requests/{ictRequest}/verify-audit', [IctRequestController::class, 'verifyAuditPpnk'])->name('ict-requests.verify-audit');
         Route::delete('ict-requests/bulk-destroy', [IctRequestController::class, 'bulkDestroy'])->name('ict-requests.bulk-destroy');
         Route::delete('ict-requests/{ictRequest}/permanent', [IctRequestController::class, 'permanentDestroy'])->name('ict-requests.permanent-destroy');
         Route::resource('ict-requests', IctRequestController::class)->only(['index', 'create', 'store', 'edit', 'update']);

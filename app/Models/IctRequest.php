@@ -120,6 +120,8 @@ class IctRequest extends Model
             'ttd_in_progress' => 'Validated Staff ICT',
             'checked_by_asmen' => 'Validated Asmen ICT',
             'progress_ppnk' => 'Progress PPNK',
+            'progress_verifikasi_audit' => 'Progress Verifikasi Audit',
+            'progress_ppm' => 'Progress PPM',
             'approved_by_manager' => 'Approved Manager ICT',
             'completed' => 'PDF TTD Lengkap',
             'needs_revision' => 'Perlu Revisi',
