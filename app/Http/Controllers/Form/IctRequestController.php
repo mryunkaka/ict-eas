@@ -427,7 +427,12 @@ class IctRequestController extends Controller
             ]);
         }
 
-        return back()->with('status', 'Data PPNK/PPK per barang berhasil disimpan.');
+        // Update status ke progress_verifikasi_audit setelah PPNK disimpan
+        $ictRequest->update([
+            'status' => 'progress_verifikasi_audit',
+        ]);
+
+        return back()->with('status', 'Data PPNK/PPK berhasil disimpan. Menunggu verifikasi audit.');
     }
 
     public function verifyAuditPpnk(Request $request, IctRequest $ictRequest): RedirectResponse

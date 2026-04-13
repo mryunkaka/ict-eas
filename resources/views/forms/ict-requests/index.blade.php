@@ -31,7 +31,7 @@
             'can_print' => $request->status === 'checked_by_asmen' && (auth()->user()->isIctAdmin() || auth()->user()->isStaffIct()),
             'requires_signature_upload' => $request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path,
             'can_upload_signed_pdf' => $request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && auth()->user()->isIctAdmin() && ! $request->final_signed_pdf_path,
-            'can_manage_ppnk' => $request->status === 'progress_ppnk' && auth()->user()->isIctAdmin(),
+            'can_manage_ppnk' => in_array($request->status, ['progress_ppnk', 'progress_verifikasi_audit'], true) && auth()->user()->isIctAdmin(),
             'is_locked_after_asmen' => in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'completed'], true),
             'quotation_mode' => $request->quotation_mode,
             'created_at' => optional($request->created_at)->format('d M Y H:i'),
@@ -696,15 +696,9 @@
                     <div class="border-t border-ink-100 px-5 py-4">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <p class="text-xs text-ink-500">Berkas dapat berupa PDF atau gambar. Nomor yang sama akan memakai satu dokumen yang sama.</p>
-                            <div class="flex flex-wrap justify-end gap-2">
+                            <div class="flex justify-end gap-2">
                                 <x-button type="button" variant="secondary" x-on:click="closePpnkModal()" class="px-4 py-2.5">Batal</x-button>
-                                <x-button type="submit" class="px-4 py-2.5">Simpan PPNK / PPK</x-button>
-                                <template x-if="detailMap[ppnkTarget]?.raw_status === 'progress_ppnk'">
-                                    <button type="button" x-on:click="closePpnkModal(); openAuditModal(ppnkTarget)" class="inline-flex items-center justify-center rounded-2xl bg-success-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-success-700">
-                                        <x-heroicon-o-check-circle class="mr-2 h-4 w-4" />
-                                        <span>PPNK Sudah Lengkap</span>
-                                    </button>
-                                </template>
+                                <x-button type="submit" x-on:click="if (!confirm('Yakin ingin menyimpan PPNK / PPK? Data yang sudah disimpan akan masuk ke proses verifikasi audit.')) { $event.preventDefault(); }" class="px-4 py-2.5">Simpan PPNK / PPK</x-button>
                             </div>
                         </div>
                     </div>

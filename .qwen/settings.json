@@ -4,7 +4,8 @@
       "Bash(php *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(npm run *)"
     ]
   },
   "$version": 3
