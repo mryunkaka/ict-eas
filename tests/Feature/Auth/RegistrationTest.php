@@ -16,10 +16,11 @@ class RegistrationTest extends TestCase
 
         $response = $this->get('/register');
 
-        $response->assertStatus(200);
+        $response->assertRedirect(route('login', absolute: false));
+        $this->followRedirects($response)->assertSee('Registrasi mandiri dinonaktifkan');
     }
 
-    public function test_new_users_can_register(): void
+    public function test_new_users_cannot_register(): void
     {
         $unit = Unit::create(['code' => 'UNIT-01', 'name' => 'Unit 01', 'type' => 'unit', 'is_active' => true]);
 
@@ -31,7 +32,7 @@ class RegistrationTest extends TestCase
             'password_confirmation' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->assertGuest();
+        $response->assertSessionHasErrors('register');
     }
 }

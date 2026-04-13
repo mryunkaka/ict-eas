@@ -17,7 +17,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
 
-Route::get('/dashboard', DashboardController::class)->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->middleware(['auth', 'verified'])->name('dashboard.stats');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -25,7 +26,13 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::prefix('forms')->name('forms.')->group(function () {
-        Route::resource('ict-requests', IctRequestController::class)->only(['index', 'create', 'store']);
+        Route::get('ict-requests/export', [IctRequestController::class, 'export'])->name('ict-requests.export');
+        Route::get('ict-requests/{ictRequest}/pdf', [IctRequestController::class, 'pdf'])->name('ict-requests.pdf');
+        Route::post('ict-requests/{ictRequest}/print', [IctRequestController::class, 'print'])->name('ict-requests.print');
+        Route::post('ict-requests/{ictRequest}/ppnk', [IctRequestController::class, 'storePpnk'])->name('ict-requests.ppnk.store');
+        Route::delete('ict-requests/bulk-destroy', [IctRequestController::class, 'bulkDestroy'])->name('ict-requests.bulk-destroy');
+        Route::delete('ict-requests/{ictRequest}/permanent', [IctRequestController::class, 'permanentDestroy'])->name('ict-requests.permanent-destroy');
+        Route::resource('ict-requests', IctRequestController::class)->only(['index', 'create', 'store', 'edit', 'update']);
         Route::resource('email-requests', EmailRequestController::class)->only(['index', 'create', 'store']);
         Route::resource('repairs', RepairRequestController::class)->only(['index', 'create', 'store']);
         Route::resource('incidents', IncidentReportController::class)->only(['index', 'create', 'store', 'show']);

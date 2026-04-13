@@ -14,9 +14,14 @@ class AssetController extends Controller
 {
     public function index(Request $request): View
     {
+        $sort = in_array($request->string('sort')->toString(), ['name', 'asset_number', 'serial_number', 'lifecycle_status', 'created_at'], true) ? $request->string('sort')->toString() : 'created_at';
+        $direction = $request->string('direction')->toString() === 'asc' ? 'asc' : 'desc';
+        $perPage = in_array((int) $request->integer('per_page', 10), [10, 20, 30, 50, 100], true) ? (int) $request->integer('per_page', 10) : 10;
+
         $assets = UnitScope::apply(
             Asset::query()
-                ->with(['unit', 'assignedUser'])
+                ->select(['id', 'unit_id', 'assigned_user_id', 'name', 'asset_number', 'serial_number', 'lifecycle_status', 'created_at'])
+                ->with(['unit:id,name', 'assignedUser:id,name'])
                 ->when($request->string('search')->toString(), function ($query, $search) {
                     $query->where(function ($inner) use ($search) {
                         $inner->where('name', 'like', "%{$search}%")
@@ -24,11 +29,11 @@ class AssetController extends Controller
                             ->orWhere('serial_number', 'like', "%{$search}%");
                     });
                 })
-                ->latest(),
+                ->orderBy($sort, $direction),
             auth()->user()
-        )->paginate(15)->withQueryString();
+        )->paginate($perPage)->withQueryString();
 
-        return view('forms.assets.index', compact('assets'));
+        return view('forms.assets.index', compact('assets', 'sort', 'direction', 'perPage'));
     }
 
     public function show(Asset $asset): View

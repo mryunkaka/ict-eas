@@ -14,6 +14,7 @@ class PublicPagesTest extends TestCase
     public function test_auth_pages_are_available(): void
     {
         $this->get('/login')->assertOk();
-        $this->get('/register')->assertOk();
+        $this->get('/register')->assertRedirect('/login');
+        $this->get('/login')->assertOk();
     }
 }

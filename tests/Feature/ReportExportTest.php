@@ -16,7 +16,7 @@ class ReportExportTest extends TestCase
     public function test_report_page_and_exports_are_available(): void
     {
         $unit = Unit::create(['code' => 'UNIT-20', 'name' => 'Unit 20', 'type' => 'unit', 'is_active' => true]);
-        $user = User::factory()->create(['unit_id' => $unit->id, 'role' => UserRole::UnitUser]);
+        $user = User::factory()->create(['unit_id' => $unit->id, 'role' => UserRole::AdminIct]);
 
         IctRequest::create([
             'unit_id' => $unit->id,
@@ -24,7 +24,7 @@ class ReportExportTest extends TestCase
             'subject' => 'Printer baru',
             'request_category' => 'hardware',
             'priority' => 'normal',
-            'status' => 'submitted',
+            'status' => 'drafted',
             'justification' => 'Kebutuhan administrasi',
         ]);
 

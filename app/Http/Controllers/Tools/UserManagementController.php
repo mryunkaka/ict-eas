@@ -18,7 +18,8 @@ class UserManagementController extends Controller
         abort_unless($request->user()->canManageUsers(), 403);
 
         $users = User::query()
-            ->with('unit')
+            ->select(['id', 'unit_id', 'employee_id', 'name', 'email', 'role', 'job_title', 'phone', 'is_active', 'created_at'])
+            ->with('unit:id,name')
             ->when($request->string('search')->toString(), function ($query, $search) {
                 $query->where(function ($inner) use ($search) {
                     $inner->where('name', 'like', "%{$search}%")
@@ -27,7 +28,7 @@ class UserManagementController extends Controller
                 });
             })
             ->latest()
-            ->paginate(15)
+            ->simplePaginate(15)
             ->withQueryString();
 
         return view('tools.users.index', [

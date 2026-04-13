@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->string('role')->default('unit_user')->index();
+            $table->string('role')->default('admin_ict')->index();
             $table->string('job_title')->nullable();
             $table->string('phone')->nullable();
             $table->boolean('is_active')->default(true)->index();

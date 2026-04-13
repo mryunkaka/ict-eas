@@ -86,26 +86,46 @@ class User extends Authenticatable
 
     public function isIctAdmin(): bool
     {
-        return in_array($this->role, [UserRole::SuperAdmin, UserRole::IctAdmin], true);
+        return in_array($this->role, [UserRole::SuperAdmin, UserRole::AdminIct], true);
     }
 
-    public function isUnitAdmin(): bool
+    public function isUnitUser(): bool
     {
-        return in_array($this->role, [UserRole::SuperAdmin, UserRole::UnitAdmin], true);
+        return in_array($this->role, [UserRole::SuperAdmin, UserRole::UnitUser], true);
     }
 
-    public function isHrgaApprover(): bool
+    public function isStaffIct(): bool
     {
-        return in_array($this->role, [UserRole::SuperAdmin, UserRole::HrgaApprover], true);
+        return in_array($this->role, [UserRole::SuperAdmin, UserRole::StaffIct], true);
+    }
+
+    public function isAsmenIct(): bool
+    {
+        return in_array($this->role, [UserRole::SuperAdmin, UserRole::AsmenIct], true);
+    }
+
+    public function isManagerIct(): bool
+    {
+        return in_array($this->role, [UserRole::SuperAdmin, UserRole::ManagerIct], true);
+    }
+
+    public function canCreateIctRequest(): bool
+    {
+        return $this->isUnitUser() || $this->isIctAdmin();
     }
 
     public function canManageUsers(): bool
     {
-        return $this->isIctAdmin();
+        return $this->isSuperAdmin();
+    }
+
+    public function canPermanentDeleteIctRequest(): bool
+    {
+        return $this->isAsmenIct() || $this->isManagerIct();
     }
 
     public function canProcessApprovals(): bool
     {
-        return $this->isUnitAdmin() || $this->isHrgaApprover() || $this->isIctAdmin();
+        return $this->isIctAdmin() || $this->isStaffIct() || $this->isAsmenIct() || $this->isManagerIct();
     }
 }

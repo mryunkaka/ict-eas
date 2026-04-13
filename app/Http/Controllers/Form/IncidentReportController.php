@@ -15,17 +15,35 @@ class IncidentReportController extends Controller
 {
     public function index(): View
     {
-        $reports = UnitScope::apply(
-            IncidentReport::query()->with(['reporter', 'asset'])->latest(),
-            auth()->user()
-        )->paginate(10);
+        $request = request();
+        $sort = in_array($request->string('sort')->toString(), ['title', 'incident_type', 'status', 'occurred_at', 'created_at'], true) ? $request->string('sort')->toString() : 'created_at';
+        $direction = $request->string('direction')->toString() === 'asc' ? 'asc' : 'desc';
+        $perPage = in_array((int) $request->integer('per_page', 10), [10, 20, 30, 50, 100], true) ? (int) $request->integer('per_page', 10) : 10;
+        $search = $request->string('search')->toString();
 
-        return view('forms.incident-reports.index', compact('reports'));
+        $reports = UnitScope::apply(
+            IncidentReport::query()
+                ->select(['id', 'unit_id', 'reported_by_id', 'asset_id', 'incident_type', 'title', 'status', 'occurred_at', 'created_at'])
+                ->with(['reporter:id,name', 'asset:id,name'])
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where(function ($inner) use ($search) {
+                        $inner->where('title', 'like', "%{$search}%")
+                            ->orWhere('incident_type', 'like', "%{$search}%")
+                            ->orWhere('status', 'like', "%{$search}%");
+                    });
+                }),
+            auth()->user()
+        )->orderBy($sort, $direction)->paginate($perPage)->withQueryString();
+
+        return view('forms.incident-reports.index', compact('reports', 'sort', 'direction', 'perPage', 'search'));
     }
 
     public function create(): View
     {
-        $assets = UnitScope::apply(Asset::query()->orderBy('name'), auth()->user())->limit(200)->get();
+        $assets = UnitScope::apply(
+            Asset::query()->select(['id', 'unit_id', 'name'])->orderBy('name'),
+            auth()->user()
+        )->limit(200)->get();
 
         return view('forms.incident-reports.create', compact('assets'));
     }

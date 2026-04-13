@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('subject');
             $table->string('request_category')->index();
             $table->string('priority')->default('normal')->index();
-            $table->string('status')->default('submitted')->index();
+            $table->string('status')->default('drafted')->index();
             $table->date('needed_at')->nullable();
             $table->text('justification');
             $table->text('additional_budget_reason')->nullable();

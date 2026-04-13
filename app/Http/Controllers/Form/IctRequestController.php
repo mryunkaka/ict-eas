@@ -2,55 +2,1061 @@
 
 namespace App\Http\Controllers\Form;
 
+use App\Enums\UserRole;
+use App\Exports\IctRequestExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreIctRequestRequest;
 use App\Models\IctRequest;
+use App\Models\IctRequestItem;
+use App\Models\IctRequestPpnkDocument;
+use App\Models\IctRequestQuotation;
 use App\Support\UnitScope;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage as StorageFacade;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class IctRequestController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $requests = UnitScope::apply(
-            IctRequest::query()->with(['requester', 'unit'])->latest(),
-            auth()->user()
-        )->paginate(10);
+        $perPage = $this->resolvePerPage($request);
+        $sort = $this->resolveSort($request);
+        $direction = $this->resolveDirection($request);
 
-        return view('forms.ict-requests.index', compact('requests'));
+        $requests = $this->buildIndexQuery($request)
+            ->orderBy($sort, $direction)
+            ->paginate($perPage)
+            ->withQueryString();
+
+        $requests->load([
+            'requester:id,name',
+            'unit:id,name',
+            'items.quotations',
+            'items.ppnkDocument',
+            'quotations',
+        ]);
+
+        return view('forms.ict-requests.index', [
+            'requests' => $requests,
+            'sort' => $sort,
+            'direction' => $direction,
+            'perPage' => $perPage,
+            'filters' => [
+                'search' => $request->string('search')->toString(),
+            ],
+        ]);
     }
 
     public function create(): View
     {
-        return view('forms.ict-requests.create');
+        abort_unless(auth()->user()->canCreateIctRequest(), 403);
+        return view('forms.ict-requests.create', $this->buildFormViewData());
+    }
+
+    public function edit(Request $request, IctRequest $ictRequest): View
+    {
+        abort_unless($request->user()->canCreateIctRequest(), 403);
+        abort_unless($this->canAccessRequest($request, $ictRequest), 403);
+        abort_unless($this->canModifyRequest($ictRequest), 403);
+
+        $ictRequest->load(['items.quotations', 'quotations']);
+
+        return view('forms.ict-requests.create', $this->buildFormViewData($ictRequest));
     }
 
     public function store(StoreIctRequestRequest $request): RedirectResponse
     {
         $user = $request->user();
+        abort_unless($user->canCreateIctRequest(), 403);
+
+        $items = $request->validated('items');
+        $quotationMode = (string) $request->input('quotation_mode', 'global');
 
         $ictRequest = IctRequest::create([
             'unit_id' => $user->unit_id,
             'requester_id' => $user->id,
-            'subject' => (string) $request->input('subject'),
+            'subject' => $this->buildSubject(
+                (string) $request->input('request_category'),
+                (string) data_get($items, '0.item_name', 'Item')
+            ),
             'request_category' => (string) $request->input('request_category'),
             'priority' => (string) $request->input('priority'),
-            'status' => 'submitted',
-            'needed_at' => $request->input('needed_at'),
+            'status' => 'drafted',
+            'needed_at' => now()->toDateString(),
+            'quotation_mode' => $quotationMode,
+            'is_pta_request' => $request->boolean('is_pta_request'),
             'justification' => (string) $request->input('justification'),
             'additional_budget_reason' => $request->input('additional_budget_reason'),
+            'pta_budget_not_listed_reason' => $request->input('pta_budget_not_listed_reason'),
+            'pta_additional_budget_reason' => $request->input('pta_additional_budget_reason'),
+            'drafted_by_name' => $request->input('drafted_by_name'),
+            'drafted_by_title' => $request->input('drafted_by_title'),
+            'acknowledged_by_name' => $request->input('acknowledged_by_name'),
+            'acknowledged_by_title' => $request->input('acknowledged_by_title'),
+            'approved_1_name' => $request->input('approved_1_name'),
+            'approved_1_title' => $request->input('approved_1_title'),
+            'approved_2_name' => $request->input('approved_2_name'),
+            'approved_2_title' => $request->input('approved_2_title'),
+            'approved_3_name' => $request->input('approved_3_name'),
+            'approved_3_title' => $request->input('approved_3_title'),
+            'approved_4_name' => $request->input('approved_4_name'),
+            'approved_4_title' => $request->input('approved_4_title'),
         ]);
 
-        $ictRequest->items()->create([
-            'line_number' => 1,
-            'item_name' => (string) $request->input('item_name'),
-            'brand_type' => $request->input('brand_type'),
-            'quantity' => (int) $request->input('quantity'),
-            'estimated_price' => $request->input('estimated_price'),
-            'notes' => $request->input('item_notes'),
-        ]);
+        $this->syncRequestDetails($ictRequest, $items, $request->validated('global_quotations') ?? [], $quotationMode);
 
         return redirect()->route('forms.ict-requests.index')->with('status', 'Permintaan fasilitas ICT berhasil disimpan.');
+    }
+
+    public function update(StoreIctRequestRequest $request, IctRequest $ictRequest): RedirectResponse
+    {
+        abort_unless($request->user()->canCreateIctRequest(), 403);
+        abort_unless($this->canAccessRequest($request, $ictRequest), 403);
+        abort_unless($this->canModifyRequest($ictRequest), 403);
+
+        $items = $request->validated('items');
+        $quotationMode = (string) $request->input('quotation_mode', 'global');
+        $shouldResetRevisionFeedback = $ictRequest->status === 'needs_revision';
+
+        if ($shouldResetRevisionFeedback && $ictRequest->revision_attachment_path) {
+            Storage::disk('public')->delete($ictRequest->revision_attachment_path);
+        }
+
+        $ictRequest->update([
+            'subject' => $this->buildSubject(
+                (string) $request->input('request_category'),
+                (string) data_get($items, '0.item_name', 'Item')
+            ),
+            'request_category' => (string) $request->input('request_category'),
+            'priority' => (string) $request->input('priority'),
+            'quotation_mode' => $quotationMode,
+            'is_pta_request' => $request->boolean('is_pta_request'),
+            'justification' => (string) $request->input('justification'),
+            'additional_budget_reason' => $request->input('additional_budget_reason'),
+            'pta_budget_not_listed_reason' => $request->input('pta_budget_not_listed_reason'),
+            'pta_additional_budget_reason' => $request->input('pta_additional_budget_reason'),
+            'drafted_by_name' => $request->input('drafted_by_name'),
+            'drafted_by_title' => $request->input('drafted_by_title'),
+            'acknowledged_by_name' => $request->input('acknowledged_by_name'),
+            'acknowledged_by_title' => $request->input('acknowledged_by_title'),
+            'approved_1_name' => $request->input('approved_1_name'),
+            'approved_1_title' => $request->input('approved_1_title'),
+            'approved_2_name' => $request->input('approved_2_name'),
+            'approved_2_title' => $request->input('approved_2_title'),
+            'approved_3_name' => $request->input('approved_3_name'),
+            'approved_3_title' => $request->input('approved_3_title'),
+            'approved_4_name' => $request->input('approved_4_name'),
+            'approved_4_title' => $request->input('approved_4_title'),
+            'revision_number' => ((int) $ictRequest->revision_number) + 1,
+            'status' => $shouldResetRevisionFeedback ? 'drafted' : $ictRequest->status,
+            'revision_note' => $shouldResetRevisionFeedback ? null : $ictRequest->revision_note,
+            'revision_attachment_name' => $shouldResetRevisionFeedback ? null : $ictRequest->revision_attachment_name,
+            'revision_attachment_path' => $shouldResetRevisionFeedback ? null : $ictRequest->revision_attachment_path,
+            'revision_attachment_size' => $shouldResetRevisionFeedback ? null : $ictRequest->revision_attachment_size,
+            'revision_attachment_mime' => $shouldResetRevisionFeedback ? null : $ictRequest->revision_attachment_mime,
+            'revision_requested_by' => $shouldResetRevisionFeedback ? null : $ictRequest->revision_requested_by,
+            'revision_requested_at' => $shouldResetRevisionFeedback ? null : $ictRequest->revision_requested_at,
+        ]);
+
+        $this->syncRequestDetails($ictRequest, $items, $request->validated('global_quotations') ?? [], $quotationMode);
+
+        return redirect()->route('forms.ict-requests.index')->with('status', 'Permintaan fasilitas ICT berhasil diperbarui.');
+    }
+
+    public function export(Request $request): BinaryFileResponse
+    {
+        $rows = [];
+        $hyperlinks = [];
+        $lineNumber = 1;
+
+        $requests = $this->buildIndexQuery($request)
+            ->with(['unit:id,name', 'items.quotations', 'quotations'])
+            ->orderBy($this->resolveSort($request), $this->resolveDirection($request))
+            ->get();
+
+        foreach ($requests as $requestRow) {
+            $globalQuotations = $requestRow->quotations
+                ->whereNull('ict_request_item_id')
+                ->sortBy('line_number')
+                ->values();
+
+            foreach ($requestRow->items->sortBy('line_number')->values() as $item) {
+                $itemQuotations = $requestRow->quotation_mode === 'per_item'
+                    ? $item->quotations->sortBy('line_number')->values()
+                    : $globalQuotations;
+
+                $total = ((float) ($item->estimated_price ?? 0)) * ((int) ($item->quantity ?? 0));
+                $excelRowNumber = count($rows) + 2;
+                $photoText = $item->photo_name ?: '-';
+                $photoUrl = $item->photo_path ? Storage::disk('public')->url($item->photo_path) : '';
+
+                $vendorTexts = [];
+                $vendorUrls = [];
+
+                foreach (range(0, 2) as $vendorIndex) {
+                    $quotation = $itemQuotations->get($vendorIndex);
+                    $vendorTexts[] = $quotation?->vendor_name ?: '-';
+                    $vendorUrls[] = $quotation?->attachment_path ? Storage::disk('public')->url($quotation->attachment_path) : '';
+                }
+
+                $rows[] = [
+                    $lineNumber,
+                    $item->item_category,
+                    $item->item_name,
+                    $item->brand_type,
+                    trim(((string) $item->quantity).' '.((string) $item->unit)),
+                    $item->estimated_price ? 'Rp '.number_format((float) $item->estimated_price, 0, ',', '.') : '-',
+                    $total > 0 ? 'Rp '.number_format($total, 0, ',', '.') : '-',
+                    $item->notes,
+                    $requestRow->unit?->name,
+                    $photoText,
+                    $vendorTexts[0],
+                    $vendorTexts[1],
+                    $vendorTexts[2],
+                ];
+
+                $hyperlinks[$excelRowNumber] = [
+                    'J' => $photoUrl,
+                    'K' => $vendorUrls[0],
+                    'L' => $vendorUrls[1],
+                    'M' => $vendorUrls[2],
+                ];
+
+                $lineNumber += 1;
+            }
+        }
+
+        return Excel::download(
+            new IctRequestExport($rows, $hyperlinks),
+            'ict-requests.xlsx'
+        );
+    }
+
+    public function pdf(Request $request, IctRequest $ictRequest): Response
+    {
+        $ictRequest->load([
+            'unit:id,code,name',
+            'requester:id,name',
+            'items.quotations',
+        ]);
+
+        abort_unless($this->canAccessRequest($request, $ictRequest), 403);
+
+        $isCopy = $request->boolean('copy');
+
+        $items = $ictRequest->items
+            ->sortBy('line_number')
+            ->values()
+            ->map(function (IctRequestItem $item, int $index) use ($isCopy) {
+                return [
+                    'number' => $index + 1,
+                    'item_name' => (string) $item->item_name,
+                    'brand_type' => (string) ($item->brand_type ?? '-'),
+                    'quantity_label' => trim(((string) $item->quantity).' '.((string) ($item->unit ?? ''))),
+                    'estimated_price' => (float) ($item->estimated_price ?? 0),
+                    'total_price' => ((float) ($item->estimated_price ?? 0)) * ((int) ($item->quantity ?? 0)),
+                    'notes' => (string) ($item->notes ?? ''),
+                    'photo_title' => (string) ($item->photo_name ?: $item->item_name),
+                    'photo_data_uri' => $this->resolveItemImageDataUri($item, $isCopy),
+                ];
+            });
+
+        $pdf = Pdf::loadView('forms.ict-requests.pdf', [
+            'ictRequest' => $ictRequest,
+            'items' => $items,
+            'totalEstimatedPrice' => $items->sum('total_price'),
+            'logoDataUri' => $this->fileToDataUri(public_path('images/eas-new.png'), $isCopy),
+            'requestDate' => optional($ictRequest->created_at)->format('d F Y'),
+            'revisionLabel' => 'REV-'.(int) $ictRequest->revision_number,
+            'isCopy' => $isCopy,
+            'companyLabel' => str((string) ($ictRequest->unit?->code ?? 'EAS'))->before('-')->upper()->toString(),
+            'departmentLabel' => $ictRequest->unit?->name ?? '-',
+            'requesterLabel' => $ictRequest->requester?->name ?? '-',
+            'signatureBlocks' => [
+                ['label' => 'Dibuat oleh', 'name' => $ictRequest->drafted_by_name, 'title' => $ictRequest->drafted_by_title],
+                ['label' => 'Diketahui oleh', 'name' => $ictRequest->acknowledged_by_name, 'title' => $ictRequest->acknowledged_by_title],
+                ['label' => 'Disetujui oleh', 'name' => $ictRequest->approved_1_name, 'title' => $ictRequest->approved_1_title],
+                ['label' => 'Disetujui oleh', 'name' => $ictRequest->approved_2_name, 'title' => $ictRequest->approved_2_title],
+            ],
+            'ptaApprovals' => [
+                ['label' => 'Disetujui oleh', 'name' => $ictRequest->approved_3_name, 'title' => $ictRequest->approved_3_title],
+                ['label' => 'Disetujui oleh', 'name' => $ictRequest->approved_4_name, 'title' => $ictRequest->approved_4_title],
+            ],
+        ]);
+
+        return $pdf->stream('form-ict-'.$ictRequest->id.'.pdf');
+    }
+
+    public function print(Request $request, IctRequest $ictRequest): Response
+    {
+        abort_unless($this->canAccessRequest($request, $ictRequest), 403);
+        abort_unless($this->canPrintRequest($request->user(), $ictRequest), 403);
+
+        $isCopy = ((int) $ictRequest->print_count) > 0;
+
+        $ictRequest->increment('print_count');
+        $ictRequest->forceFill(['last_printed_at' => now()])->save();
+
+        $request->query->set('copy', $isCopy ? '1' : '0');
+
+        return $this->pdf($request, $ictRequest->fresh());
+    }
+
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->canCreateIctRequest(), 403);
+
+        $validated = $request->validate([
+            'selected_ids' => ['nullable', 'array'],
+            'selected_ids.*' => ['integer'],
+            'select_all_matching' => ['nullable', 'boolean'],
+            'search' => ['nullable', 'string'],
+        ]);
+
+        $query = $this->buildIndexQuery($request);
+        $query->whereNotIn('status', ['checked_by_asmen', 'progress_ppnk', 'completed']);
+
+        if (($validated['select_all_matching'] ?? false) === true) {
+            $deleted = (clone $query)->delete();
+        } else {
+            $selectedIds = collect($validated['selected_ids'] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->values();
+
+            if ($selectedIds->isEmpty()) {
+                return back()->with('status', 'Tidak ada data yang dipilih untuk dihapus.');
+            }
+
+            $deleted = (clone $query)->whereIn('id', $selectedIds)->delete();
+        }
+
+        return back()->with('status', "{$deleted} permintaan ICT berhasil dihapus.");
+    }
+
+    public function permanentDestroy(Request $request, IctRequest $ictRequest): RedirectResponse
+    {
+        abort_unless($request->user()->canPermanentDeleteIctRequest(), 403);
+
+        $this->deleteIctRequestFiles($ictRequest);
+
+        $ictRequest->delete();
+
+        return back()->with('status', 'Permintaan ICT berhasil dihapus secara permanen.');
+    }
+
+    public function storePpnk(Request $request, IctRequest $ictRequest): RedirectResponse
+    {
+        abort_unless($this->canAccessRequest($request, $ictRequest), 403);
+        abort_unless($request->user()->isIctAdmin(), 403);
+        abort_unless($ictRequest->status === 'progress_ppnk', 403);
+
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item_id' => ['required', 'integer'],
+            'items.*.ppnk_number' => ['required', 'string', 'max:255'],
+            'items.*.ppnk_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+
+        $ictRequest->loadMissing(['items', 'ppnkDocuments']);
+
+        $rows = collect($validated['items'])
+            ->map(fn ($item) => [
+                'item_id' => (int) $item['item_id'],
+                'ppnk_number' => trim((string) $item['ppnk_number']),
+                'ppnk_attachment' => $item['ppnk_attachment'] ?? null,
+            ]);
+
+        $itemsById = $ictRequest->items->keyBy('id');
+        $documentsByNumber = $ictRequest->ppnkDocuments->keyBy('ppnk_number');
+        $processedDocuments = [];
+
+        foreach ($rows as $row) {
+            abort_unless($itemsById->has($row['item_id']), 422);
+        }
+
+        foreach ($rows->groupBy('ppnk_number') as $ppnkNumber => $numberRows) {
+            $uploadedFile = collect($numberRows)->pluck('ppnk_attachment')->first(fn ($file) => $file instanceof UploadedFile);
+            $document = $documentsByNumber->get($ppnkNumber);
+
+            if (! $document && ! ($uploadedFile instanceof UploadedFile)) {
+                return back()
+                    ->withErrors(['items' => "File PPNK/PPK untuk nomor {$ppnkNumber} wajib diupload minimal sekali."])
+                    ->withInput();
+            }
+
+            if ($uploadedFile instanceof UploadedFile) {
+                if ($document && $document->attachment_path) {
+                    Storage::disk('public')->delete($document->attachment_path);
+                }
+
+                $stored = $this->storePpnkAttachment($uploadedFile);
+
+                $document = IctRequestPpnkDocument::updateOrCreate(
+                    [
+                        'ict_request_id' => $ictRequest->id,
+                        'ppnk_number' => $ppnkNumber,
+                    ],
+                    [
+                        'attachment_name' => $stored['name'],
+                        'attachment_path' => $stored['path'],
+                        'attachment_size' => $stored['size'],
+                        'attachment_mime' => $stored['mime'],
+                        'uploaded_by' => $request->user()->id,
+                        'uploaded_at' => now(),
+                    ]
+                );
+            }
+
+            $processedDocuments[$ppnkNumber] = $document;
+        }
+
+        foreach ($rows as $row) {
+            $document = $processedDocuments[$row['ppnk_number']] ?? $documentsByNumber->get($row['ppnk_number']);
+            $itemsById[$row['item_id']]->update([
+                'ppnk_document_id' => $document?->id,
+            ]);
+        }
+
+        return back()->with('status', 'Data PPNK/PPK per barang berhasil disimpan.');
+    }
+
+    protected function buildSubject(string $category, string $itemName): string
+    {
+        $categoryLabel = match ($category) {
+            'software' => 'Software',
+            'accessories' => 'Accessories',
+            default => 'Hardware',
+        };
+
+        return Str::limit(trim($categoryLabel.' - '.$itemName), 255, '');
+    }
+
+    protected function buildIndexQuery(Request $request): Builder
+    {
+        $search = $request->string('search')->toString();
+
+        return UnitScope::apply(
+            IctRequest::query()
+                ->select([
+                    'id',
+                    'unit_id',
+                    'requester_id',
+                    'subject',
+                    'priority',
+                    'status',
+                    'created_at',
+                    'quotation_mode',
+                    'revision_number',
+                    'print_count',
+                    'last_printed_at',
+                    'final_signed_pdf_name',
+                    'final_signed_pdf_path',
+                    'rejected_reason',
+                    'revision_note',
+                    'revision_attachment_name',
+                    'revision_attachment_path',
+                ])
+                ->with([
+                    'requester:id,name',
+                    'unit:id,name',
+                    'items.ppnkDocument:id,ict_request_id,ppnk_number,attachment_name,attachment_path,attachment_mime',
+                ])
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where(function ($inner) use ($search) {
+                        $inner->where('subject', 'like', "%{$search}%")
+                            ->orWhere('status', 'like', "%{$search}%")
+                            ->orWhere('priority', 'like', "%{$search}%")
+                            ->orWhereHas('unit', fn ($unitQuery) => $unitQuery->where('name', 'like', "%{$search}%"))
+                            ->orWhereHas('requester', fn ($userQuery) => $userQuery->where('name', 'like', "%{$search}%"));
+                    });
+                }),
+            $request->user()
+        );
+    }
+
+    protected function resolvePerPage(Request $request): int
+    {
+        $perPage = (int) $request->integer('per_page', 10);
+
+        return in_array($perPage, [10, 20, 30, 50, 100], true) ? $perPage : 10;
+    }
+
+    protected function resolveSort(Request $request): string
+    {
+        $sort = $request->string('sort')->toString();
+
+        return in_array($sort, ['subject', 'priority', 'status', 'created_at'], true) ? $sort : 'created_at';
+    }
+
+    protected function resolveDirection(Request $request): string
+    {
+        return $request->string('direction')->toString() === 'asc' ? 'asc' : 'desc';
+    }
+
+    protected function storeQuotations(IctRequest $request, array $quotations, ?IctRequestItem $item = null): void
+    {
+        foreach ($quotations as $index => $quotation) {
+            $attachment = $quotation['attachment'] ?? null;
+            $vendorName = trim((string) ($quotation['vendor_name'] ?? ''));
+            $attachmentName = null;
+            $attachmentPath = null;
+            $attachmentSize = null;
+            $attachmentMime = null;
+
+            if ($attachment instanceof UploadedFile) {
+                [
+                    'name' => $attachmentName,
+                    'path' => $attachmentPath,
+                    'size' => $attachmentSize,
+                    'mime' => $attachmentMime,
+                ] = $this->resolveQuotationAttachmentStorage($attachment);
+            } elseif (filled($quotation['current_attachment_path'] ?? null)) {
+                $attachmentPath = (string) $quotation['current_attachment_path'];
+                $attachmentName = (string) ($quotation['current_attachment_name'] ?? null);
+                $attachmentMime = (string) ($quotation['current_attachment_mime'] ?? null);
+            }
+
+            if (! $attachmentPath) {
+                continue;
+            }
+
+            $request->quotations()->create([
+                'ict_request_item_id' => $item?->id,
+                'line_number' => $index + 1,
+                'vendor_name' => $vendorName !== '' ? $vendorName : null,
+                'attachment_name' => $attachmentName,
+                'attachment_path' => $attachmentPath,
+                'attachment_size' => $attachmentSize,
+                'attachment_mime' => $attachmentMime,
+            ]);
+        }
+    }
+
+    protected function resolveQuotationAttachmentStorage(UploadedFile $attachment): array
+    {
+        $originalName = $attachment->getClientOriginalName();
+        $existingAttachment = IctRequestQuotation::query()
+            ->where('attachment_name', $originalName)
+            ->where('attachment_mime', 'application/pdf')
+            ->latest('id')
+            ->first(['attachment_name', 'attachment_path', 'attachment_size', 'attachment_mime']);
+
+        if ($existingAttachment && $existingAttachment->attachment_path && Storage::disk('public')->exists($existingAttachment->attachment_path)) {
+            return [
+                'name' => (string) $existingAttachment->attachment_name,
+                'path' => (string) $existingAttachment->attachment_path,
+                'size' => $existingAttachment->attachment_size,
+                'mime' => (string) $existingAttachment->attachment_mime,
+            ];
+        }
+
+        $storedPath = $attachment->storeAs('ict-request-quotations', $originalName, 'public');
+
+        return [
+            'name' => $originalName,
+            'path' => $storedPath,
+            'size' => $attachment->getSize(),
+            'mime' => $attachment->getClientMimeType(),
+        ];
+    }
+
+    protected function resolveItemPhotoStorage(UploadedFile $photo): array
+    {
+        $originalName = $photo->getClientOriginalName();
+        $mime = $photo->getClientMimeType();
+
+        // Cek apakah foto dengan nama dan mime yang sama sudah ada di database
+        $existingPhoto = IctRequestItem::query()
+            ->where('photo_name', $originalName)
+            ->whereNotNull('photo_path')
+            ->latest('id')
+            ->first(['photo_name', 'photo_path', 'photo_size']);
+
+        // Jika file sudah ada di storage dan masih referenced di database, gunakan file yang sama
+        if ($existingPhoto && $existingPhoto->photo_path && Storage::disk('public')->exists($existingPhoto->photo_path)) {
+            return [
+                'name' => (string) $existingPhoto->photo_name,
+                'path' => (string) $existingPhoto->photo_path,
+                'size' => $existingPhoto->photo_size,
+            ];
+        }
+
+        // Jika file tidak ada, simpan dengan nama asli
+        $storedPath = $photo->storeAs('ict-request-items', $originalName, 'public');
+
+        return [
+            'name' => $originalName,
+            'path' => $storedPath,
+            'size' => $photo->getSize(),
+        ];
+    }
+
+    protected function syncRequestDetails(IctRequest $ictRequest, array $items, array $globalQuotations, string $quotationMode): void
+    {
+        $ictRequest->loadMissing(['items.quotations', 'quotations']);
+
+        $ictRequest->quotations()->delete();
+        $ictRequest->items()->delete();
+
+        foreach ($items as $index => $item) {
+            $photo = $item['photo'] ?? null;
+            $photoPath = null;
+            $photoSize = null;
+            $photoName = null;
+
+            if ($photo instanceof UploadedFile) {
+                [
+                    'name' => $photoName,
+                    'path' => $photoPath,
+                    'size' => $photoSize,
+                ] = $this->resolveItemPhotoStorage($photo);
+            } elseif (filled($item['current_photo_path'] ?? null)) {
+                $photoPath = (string) $item['current_photo_path'];
+                $photoName = $item['current_photo_name'] ?? null;
+            }
+
+            $createdItem = $ictRequest->items()->create([
+                'line_number' => $index + 1,
+                'item_name' => (string) $item['item_name'],
+                'item_category' => $item['item_category'] ?? null,
+                'brand_type' => $item['brand_type'] ?? null,
+                'unit' => $item['unit'] ?? null,
+                'quantity' => (int) $item['quantity'],
+                'estimated_price' => $item['estimated_price'] ?? null,
+                'notes' => $item['item_notes'] ?? null,
+                'photo_name' => $item['photo_name'] ?? $photoName,
+                'photo_path' => $photoPath,
+                'photo_size' => $photoSize,
+            ]);
+
+            if ($quotationMode === 'per_item') {
+                $this->storeQuotations($ictRequest, $item['quotations'] ?? [], $createdItem);
+            }
+        }
+
+        if ($quotationMode === 'global') {
+            $this->storeQuotations($ictRequest, $globalQuotations);
+        }
+    }
+
+    protected function buildFormViewData(?IctRequest $ictRequest = null): array
+    {
+        $user = auth()->user();
+        $defaultStaffIct = $user->unit_id
+            ? \App\Models\User::query()
+                ->where('unit_id', $user->unit_id)
+                ->where('role', UserRole::StaffIct)
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->first(['name', 'job_title', 'role'])
+            : null;
+
+        $latestPtaProfile = IctRequest::query()
+            ->where('requester_id', auth()->id())
+            ->where(function ($query) {
+                $query->where('is_pta_request', true)
+                    ->orWhereNotNull('drafted_by_name')
+                    ->orWhereNotNull('acknowledged_by_name')
+                    ->orWhereNotNull('approved_1_name')
+                    ->orWhereNotNull('approved_2_name')
+                    ->orWhereNotNull('approved_3_name')
+                    ->orWhereNotNull('approved_4_name');
+            })
+            ->latest('id')
+            ->first([
+                'is_pta_request',
+                'additional_budget_reason',
+                'pta_budget_not_listed_reason',
+                'pta_additional_budget_reason',
+                'drafted_by_name',
+                'drafted_by_title',
+                'acknowledged_by_name',
+                'acknowledged_by_title',
+                'approved_1_name',
+                'approved_1_title',
+                'approved_2_name',
+                'approved_2_title',
+                'approved_3_name',
+                'approved_3_title',
+                'approved_4_name',
+                'approved_4_title',
+            ]);
+
+        $latestApprovalProfile = IctRequest::query()
+            ->where('unit_id', $user->unit_id)
+            ->where(function ($query) {
+                $query->whereNotNull('drafted_by_name')
+                    ->orWhereNotNull('drafted_by_title')
+                    ->orWhereNotNull('acknowledged_by_name')
+                    ->orWhereNotNull('acknowledged_by_title')
+                    ->orWhereNotNull('approved_1_name')
+                    ->orWhereNotNull('approved_1_title')
+                    ->orWhereNotNull('approved_2_name')
+                    ->orWhereNotNull('approved_2_title');
+            })
+            ->latest('id')
+            ->first([
+                'drafted_by_name',
+                'drafted_by_title',
+                'acknowledged_by_name',
+                'acknowledged_by_title',
+                'approved_1_name',
+                'approved_1_title',
+                'approved_2_name',
+                'approved_2_title',
+            ]);
+
+        $blankQuotations = collect(range(1, 3))->map(fn () => [
+            'vendor_name' => '',
+            'attachment_label' => '',
+            'attachment_size_label' => '',
+            'current_attachment_name' => '',
+            'current_attachment_path' => '',
+            'current_attachment_mime' => '',
+        ])->all();
+
+        $initialGlobalQuotations = $ictRequest
+            ? $ictRequest->quotations
+                ->whereNull('ict_request_item_id')
+                ->sortBy('line_number')
+                ->values()
+                ->map(fn ($quotation) => [
+                    'vendor_name' => (string) ($quotation->vendor_name ?? ''),
+                    'attachment_label' => (string) ($quotation->attachment_name ?? ''),
+                    'attachment_size_label' => '',
+                    'current_attachment_name' => (string) ($quotation->attachment_name ?? ''),
+                    'current_attachment_path' => (string) ($quotation->attachment_path ?? ''),
+                    'current_attachment_mime' => (string) ($quotation->attachment_mime ?? ''),
+                ])
+                ->pad(3, [
+                    'vendor_name' => '',
+                    'attachment_label' => '',
+                    'attachment_size_label' => '',
+                    'current_attachment_name' => '',
+                    'current_attachment_path' => '',
+                    'current_attachment_mime' => '',
+                ])->values()->all()
+            : $blankQuotations;
+
+        $initialItems = $ictRequest
+            ? $ictRequest->items
+                ->sortBy('line_number')
+                ->values()
+                ->map(function (IctRequestItem $item) use ($blankQuotations, $ictRequest) {
+                    $quotations = $ictRequest->quotation_mode === 'per_item'
+                        ? $item->quotations
+                            ->sortBy('line_number')
+                            ->values()
+                            ->map(fn ($quotation) => [
+                                'vendor_name' => (string) ($quotation->vendor_name ?? ''),
+                                'attachment_label' => (string) ($quotation->attachment_name ?? ''),
+                                'attachment_size_label' => '',
+                                'current_attachment_name' => (string) ($quotation->attachment_name ?? ''),
+                                'current_attachment_path' => (string) ($quotation->attachment_path ?? ''),
+                                'current_attachment_mime' => (string) ($quotation->attachment_mime ?? ''),
+                            ])
+                            ->pad(3, $blankQuotations[0])
+                            ->values()
+                            ->all()
+                        : $blankQuotations;
+
+                    return [
+                        'id' => $item->id,
+                        'item_name' => (string) $item->item_name,
+                        'item_category' => (string) ($item->item_category ?? ''),
+                        'brand_type' => (string) ($item->brand_type ?? ''),
+                        'quantity' => (int) $item->quantity,
+                        'unit' => (string) ($item->unit ?? ''),
+                        'estimated_price' => $item->estimated_price,
+                        'item_notes' => (string) ($item->notes ?? ''),
+                        'photo_name' => (string) ($item->photo_name ?? ''),
+                        'photo_label' => (string) ($item->photo_name ?? ''),
+                        'photo_size_label' => '',
+                        'current_photo_name' => (string) ($item->photo_name ?? ''),
+                        'current_photo_path' => (string) ($item->photo_path ?? ''),
+                        'quotations' => $quotations,
+                    ];
+                })
+                ->all()
+            : [[
+                'item_name' => '',
+                'item_category' => '',
+                'brand_type' => '',
+                'quantity' => 1,
+                'unit' => '',
+                'estimated_price' => '',
+                'item_notes' => '',
+                'photo_name' => '',
+                'photo_label' => '',
+                'photo_size_label' => '',
+                'current_photo_name' => '',
+                'current_photo_path' => '',
+                'quotations' => $blankQuotations,
+            ]];
+
+        $defaultDrafter = [
+            'drafted_by_name' => $defaultStaffIct?->name ?: $user->name,
+            'drafted_by_title' => $defaultStaffIct?->job_title ?: ($defaultStaffIct?->role?->label() ?: ($user->job_title ?: $user->role?->label())),
+        ];
+
+        $approvalProfile = $ictRequest
+            ? $ictRequest
+            : (object) array_merge(
+                $defaultDrafter,
+                [
+                    'acknowledged_by_name' => $latestApprovalProfile?->acknowledged_by_name,
+                    'acknowledged_by_title' => $latestApprovalProfile?->acknowledged_by_title,
+                    'approved_1_name' => $latestApprovalProfile?->approved_1_name,
+                    'approved_1_title' => $latestApprovalProfile?->approved_1_title,
+                    'approved_2_name' => $latestApprovalProfile?->approved_2_name,
+                    'approved_2_title' => $latestApprovalProfile?->approved_2_title,
+                ]
+            );
+
+        return [
+            'ptaProfile' => $latestPtaProfile,
+            'approvalProfile' => $approvalProfile,
+            'itemCategories' => $this->itemCategories(),
+            'ictRequest' => $ictRequest,
+            'formMode' => $ictRequest ? 'edit' : 'create',
+            'formAction' => $ictRequest
+                ? route('forms.ict-requests.update', $ictRequest)
+                : route('forms.ict-requests.store'),
+            'formKey' => $ictRequest ? 'ict-request-edit-'.$ictRequest->id : 'ict-request-create',
+            'initialQuotationMode' => old('quotation_mode', $ictRequest?->quotation_mode ?? 'global'),
+            'initialPtaEnabled' => old('is_pta_request', ($ictRequest?->is_pta_request ?? $latestPtaProfile?->is_pta_request) ? '1' : '0') === '1',
+            'initialItems' => old('items', $initialItems),
+            'initialGlobalQuotations' => old('global_quotations', $initialGlobalQuotations),
+        ];
+    }
+
+    protected function itemCategories(): array
+    {
+        return [
+            'Apps',
+            'BTS',
+            'Body Hardnest',
+            'CCTV',
+            'Domain',
+            'Fingerprint',
+            'Flashdisk',
+            'Fotocopy',
+            'Grounding',
+            'HDD',
+            'Hosting',
+            'Hosting & Domain',
+            'HTB',
+            'Installasi FO',
+            'Internet',
+            'Jaringan',
+            'Kabel',
+            'Kabel Power',
+            'Keyboard',
+            'Laptop/Notebook',
+            'Lisensi',
+            'Modem',
+            'Monitor',
+            'Mouse',
+            'Multitester',
+            'Other',
+            'PC',
+            'Penguat Sinyal',
+            'Printer',
+            'Proyektor',
+            'PSU',
+            'Rak Server',
+            'RAM',
+            'Scoreboard',
+            'SSD',
+            'Stavol',
+            'Stop Kontak',
+            'Switch',
+            'Tangga',
+            'Tools',
+            'Tower',
+            'TV',
+            'UPS',
+            'Wi-Fi',
+        ];
+    }
+
+    protected function canAccessRequest(Request $request, IctRequest $ictRequest): bool
+    {
+        $user = $request->user();
+
+        return $user->isSuperAdmin() || $ictRequest->unit_id === $user->unit_id;
+    }
+
+    protected function resolveItemImageDataUri(IctRequestItem $item, bool $grayscale = false): ?string
+    {
+        if ($item->photo_path) {
+            return $this->storagePathToDataUri($item->photo_path, $grayscale);
+        }
+
+        $quotationImagePath = $item->quotations
+            ->first(fn ($quotation) => str_starts_with((string) $quotation->attachment_mime, 'image/'))
+            ?->attachment_path;
+
+        return $quotationImagePath ? $this->storagePathToDataUri($quotationImagePath, $grayscale) : null;
+    }
+
+    protected function storagePathToDataUri(string $path, bool $grayscale = false): ?string
+    {
+        return $this->fileToDataUri(StorageFacade::disk('public')->path($path), $grayscale);
+    }
+
+    protected function fileToDataUri(?string $path, bool $grayscale = false): ?string
+    {
+        if (! $path || ! is_file($path)) {
+            return null;
+        }
+
+        $contents = file_get_contents($path);
+
+        if ($contents === false) {
+            return null;
+        }
+
+        $mimeType = mime_content_type($path) ?: 'application/octet-stream';
+
+        if ($grayscale && function_exists('imagecreatefromstring') && str_starts_with($mimeType, 'image/')) {
+            $grayscaleDataUri = $this->imagePathToGrayscaleDataUri($path, $mimeType);
+
+            if ($grayscaleDataUri) {
+                return $grayscaleDataUri;
+            }
+        }
+
+        return 'data:'.$mimeType.';base64,'.base64_encode($contents);
+    }
+
+    protected function imagePathToGrayscaleDataUri(string $path, string $mimeType): ?string
+    {
+        $contents = file_get_contents($path);
+
+        if ($contents === false) {
+            return null;
+        }
+
+        $image = @imagecreatefromstring($contents);
+
+        if ($image === false) {
+            return null;
+        }
+
+        imagefilter($image, IMG_FILTER_GRAYSCALE);
+
+        ob_start();
+
+        $written = match ($mimeType) {
+            'image/png' => imagepng($image),
+            'image/gif' => imagegif($image),
+            default => imagejpeg($image, null, 90),
+        };
+
+        $binary = ob_get_clean();
+        imagedestroy($image);
+
+        if (! $written || $binary === false) {
+            return null;
+        }
+
+        $outputMimeType = $mimeType === 'image/gif' ? 'image/gif' : ($mimeType === 'image/png' ? 'image/png' : 'image/jpeg');
+
+        return 'data:'.$outputMimeType.';base64,'.base64_encode($binary);
+    }
+
+    protected function canPrintRequest($user, IctRequest $ictRequest): bool
+    {
+        return $ictRequest->status === 'checked_by_asmen' && ($user->isIctAdmin() || $user->isStaffIct());
+    }
+
+    protected function canModifyRequest(IctRequest $ictRequest): bool
+    {
+        return ! in_array($ictRequest->status, ['checked_by_asmen', 'progress_ppnk', 'completed'], true);
+    }
+
+    protected function storePpnkAttachment(UploadedFile $attachment): array
+    {
+        $originalName = $attachment->getClientOriginalName();
+        $mime = $attachment->getClientMimeType();
+
+        // Cek apakah file dengan nama yang sama sudah ada di database
+        $existingAttachment = IctRequestPpnkDocument::query()
+            ->where('attachment_name', $originalName)
+            ->where('attachment_mime', $mime)
+            ->latest('id')
+            ->first(['attachment_name', 'attachment_path', 'attachment_size', 'attachment_mime']);
+
+        // Jika file sudah ada di storage dan masih referenced di database, gunakan file yang sama
+        if ($existingAttachment && $existingAttachment->attachment_path && Storage::disk('public')->exists($existingAttachment->attachment_path)) {
+            return [
+                'name' => (string) $existingAttachment->attachment_name,
+                'path' => (string) $existingAttachment->attachment_path,
+                'size' => $existingAttachment->attachment_size,
+                'mime' => (string) $existingAttachment->attachment_mime,
+            ];
+        }
+
+        $storedPath = $attachment->storeAs('ict-request-ppnk', $originalName, 'public');
+
+        return [
+            'name' => $originalName,
+            'path' => $storedPath,
+            'size' => $attachment->getSize(),
+            'mime' => $mime,
+        ];
+    }
+
+    protected function deleteIctRequestFiles(IctRequest $ictRequest): void
+    {
+        $ictRequest->load(['items', 'quotations', 'ppnkDocuments']);
+
+        // Hapus final signed PDF
+        if ($ictRequest->final_signed_pdf_path) {
+            Storage::disk('public')->delete($ictRequest->final_signed_pdf_path);
+        }
+
+        // Hapus revision attachment
+        if ($ictRequest->revision_attachment_path) {
+            Storage::disk('public')->delete($ictRequest->revision_attachment_path);
+        }
+
+        // Hapus foto dan file dari items
+        foreach ($ictRequest->items as $item) {
+            if ($item->photo_path) {
+                Storage::disk('public')->delete($item->photo_path);
+            }
+        }
+
+        // Hapus attachment dari quotations
+        foreach ($ictRequest->quotations as $quotation) {
+            if ($quotation->attachment_path) {
+                Storage::disk('public')->delete($quotation->attachment_path);
+            }
+        }
+
+        // Hapus attachment dari ppnk documents
+        foreach ($ictRequest->ppnkDocuments as $ppnkDoc) {
+            if ($ppnkDoc->attachment_path) {
+                Storage::disk('public')->delete($ppnkDoc->attachment_path);
+            }
+        }
+
+        // Hapus items dan quotations (akan terhapus via cascade)
+        $ictRequest->items()->delete();
+        $ictRequest->quotations()->delete();
+        $ictRequest->ppnkDocuments()->delete();
+        $ictRequest->reviewHistories()->delete();
     }
 }

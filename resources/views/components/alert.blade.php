@@ -7,6 +7,12 @@
     ];
 @endphp
 
-<div {{ $attributes->class(['rounded-2xl px-4 py-3 text-sm', $variants[$variant] ?? $variants['success']]) }}>
+<div
+    x-data="{ visible: true }"
+    x-init="window.setTimeout(() => visible = false, 7000)"
+    x-show="visible"
+    x-transition.opacity.duration.400ms
+    {{ $attributes->class(['rounded-2xl px-4 py-3 text-sm', $variants[$variant] ?? $variants['success']]) }}
+>
     {{ $slot }}
 </div>

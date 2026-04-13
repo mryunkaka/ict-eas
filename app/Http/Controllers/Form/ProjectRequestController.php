@@ -7,18 +7,33 @@ use App\Http\Requests\StoreProjectRequestRequest;
 use App\Models\ProjectRequest;
 use App\Support\UnitScope;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ProjectRequestController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $projects = UnitScope::apply(
-            ProjectRequest::query()->with(['requester', 'unit'])->latest(),
-            auth()->user()
-        )->paginate(10);
+        $sort = in_array($request->string('sort')->toString(), ['title', 'priority', 'status', 'target_date', 'created_at'], true) ? $request->string('sort')->toString() : 'created_at';
+        $direction = $request->string('direction')->toString() === 'asc' ? 'asc' : 'desc';
+        $perPage = in_array((int) $request->integer('per_page', 10), [10, 20, 30, 50, 100], true) ? (int) $request->integer('per_page', 10) : 10;
+        $search = $request->string('search')->toString();
 
-        return view('forms.project-requests.index', compact('projects'));
+        $projects = UnitScope::apply(
+            ProjectRequest::query()
+                ->select(['id', 'unit_id', 'requester_id', 'title', 'priority', 'status', 'target_date', 'created_at'])
+                ->with(['requester:id,name', 'unit:id,name'])
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where(function ($inner) use ($search) {
+                        $inner->where('title', 'like', "%{$search}%")
+                            ->orWhere('status', 'like', "%{$search}%")
+                            ->orWhere('priority', 'like', "%{$search}%");
+                    });
+                }),
+            auth()->user()
+        )->orderBy($sort, $direction)->paginate($perPage)->withQueryString();
+
+        return view('forms.project-requests.index', compact('projects', 'sort', 'direction', 'perPage', 'search'));
     }
 
     public function create(): View

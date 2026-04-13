@@ -4,7 +4,7 @@
             <x-alert>{{ session('status') }}</x-alert>
         @endif
 
-        <x-card title="Management User" subtitle="Kelola akun, role, status aktif, dan unit kerja">
+        <x-card title="Management User" subtitle="Super admin mengelola akun, role, status aktif, dan unit kerja secara manual">
             <form method="GET" class="grid gap-4 md:grid-cols-[1fr_auto]">
                 <x-input name="search" label="Cari User" :value="request('search')" />
                 <div class="flex items-end">
@@ -46,7 +46,7 @@
                 </div>
             </x-card>
 
-            <x-card title="Tambah User" subtitle="Seed manual untuk admin unit, HRGA, atau ICT">
+            <x-card title="Tambah User" subtitle="Buat manual user Admin ICT, Staff ICT, Asmen ICT, Manager ICT, atau Super Admin">
                 <form method="POST" action="{{ route('tools.users.store') }}" class="space-y-4">
                     @csrf
                     <x-input name="name" label="Nama" />

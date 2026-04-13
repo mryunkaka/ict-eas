@@ -36,46 +36,46 @@ class DatabaseSeeder extends Seeder
         ]);
 
         User::updateOrCreate([
-            'email' => 'ict.admin@easgroup.co.id',
+            'email' => 'admin.ict@easgroup.co.id',
         ], [
             'unit_id' => $eas->id,
-            'name' => 'ICT Admin',
+            'name' => 'Admin ICT',
             'password' => 'password',
-            'role' => UserRole::IctAdmin,
-            'job_title' => 'ICT Support Lead',
+            'role' => UserRole::AdminIct,
+            'job_title' => 'Admin ICT',
             'is_active' => true,
         ]);
 
         User::updateOrCreate([
-            'email' => 'hrga.approver@easgroup.co.id',
+            'email' => 'staff.ict@easgroup.co.id',
         ], [
             'unit_id' => $eas->id,
-            'name' => 'HRGA Approver',
+            'name' => 'Staff ICT',
             'password' => 'password',
-            'role' => UserRole::HrgaApprover,
-            'job_title' => 'HRGA Officer',
+            'role' => UserRole::StaffIct,
+            'job_title' => 'Staff ICT',
             'is_active' => true,
         ]);
 
         User::updateOrCreate([
-            'email' => 'unit.admin@easgroup.co.id',
+            'email' => 'asmen.ict@easgroup.co.id',
         ], [
-            'unit_id' => $unit->id,
-            'name' => 'Unit Admin',
+            'unit_id' => $eas->id,
+            'name' => 'Asmen ICT',
             'password' => 'password',
-            'role' => UserRole::UnitAdmin,
-            'job_title' => 'Kepala Unit',
+            'role' => UserRole::AsmenIct,
+            'job_title' => 'Asisten Manager ICT',
             'is_active' => true,
         ]);
 
         User::updateOrCreate([
-            'email' => 'user.unit@easgroup.co.id',
+            'email' => 'manager.ict@easgroup.co.id',
         ], [
-            'unit_id' => $unit->id,
-            'name' => 'User Unit',
+            'unit_id' => $eas->id,
+            'name' => 'Manager ICT',
             'password' => 'password',
-            'role' => UserRole::UnitUser,
-            'job_title' => 'Staff',
+            'role' => UserRole::ManagerIct,
+            'job_title' => 'Manager ICT',
             'is_active' => true,
         ]);
     }
