@@ -11,12 +11,30 @@
             ])
             ->all();
 
+        // Ambil Staff ICT dari unit yang sama
+        $staffIct = $request->unit_id
+            ? \App\Models\User::where('unit_id', $request->unit_id)
+                ->where('role', \App\Enums\UserRole::StaffIct)
+                ->first()
+            : null;
+
+        // Ambil riwayat HRGA (deliverer) terakhir dari unit yang sama
+        $lastDeliverer = $request->unit_id
+            ? \App\Models\AssetHandover::whereHas('ictRequest', function ($q) use ($request) {
+                    $q->where('unit_id', $request->unit_id);
+                })
+                ->whereNotNull('deliverer_name')
+                ->latest('created_at')
+                ->first(['deliverer_name', 'deliverer_position'])
+            : null;
+
         return [
             'id' => $request->id,
             'subject' => $request->subject,
             'revision_number' => (int) $request->revision_number,
             'print_count' => (int) $request->print_count,
             'unit' => $request->unit?->name,
+            'unit_id' => $request->unit_id,
             'requester' => $request->requester?->name,
             'generated_pdf_url' => route('forms.ict-requests.pdf', $request),
             'copy_pdf_url' => route('forms.ict-requests.pdf', ['ictRequest' => $request, 'copy' => 1]),
@@ -24,6 +42,9 @@
             'edit_url' => route('forms.ict-requests.edit', $request),
             'upload_signed_url' => route('approvals.ict.update', $request),
             'upload_ppnk_url' => route('forms.ict-requests.ppnk.store', $request),
+            'upload_ppm_url' => route('forms.ict-requests.ppm.store', $request),
+            'upload_po_url' => route('forms.ict-requests.po.store', $request),
+            'goods_receipt_url' => route('forms.ict-requests.goods-receipt.store', $request),
             'verify_audit_url' => route('forms.ict-requests.verify-audit', $request),
             'priority' => strtoupper($request->priority),
             'raw_status' => $request->status,
@@ -32,7 +53,11 @@
             'requires_signature_upload' => $request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path,
             'can_upload_signed_pdf' => $request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && auth()->user()->isIctAdmin() && ! $request->final_signed_pdf_path,
             'can_manage_ppnk' => in_array($request->status, ['progress_ppnk', 'progress_verifikasi_audit'], true) && auth()->user()->isIctAdmin(),
-            'is_locked_after_asmen' => in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'completed'], true),
+            'can_manage_ppm' => $request->status === 'progress_ppm' && auth()->user()->isIctAdmin(),
+            'can_manage_po' => $request->status === 'progress_po' && auth()->user()->isIctAdmin(),
+            'can_manage_goods_receipt' => $request->status === 'progress_waiting_goods' && auth()->user()->isIctAdmin(),
+            'can_verify_audit' => $request->status === 'progress_verifikasi_audit' && auth()->user()->isIctAdmin(),
+            'is_locked_after_asmen' => in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'completed'], true),
             'quotation_mode' => $request->quotation_mode,
             'created_at' => optional($request->created_at)->format('d M Y H:i'),
             'final_signed_pdf_name' => $request->final_signed_pdf_name,
@@ -41,8 +66,25 @@
             'revision_note' => $request->revision_note,
             'revision_attachment_name' => $request->revision_attachment_name,
             'revision_attachment_url' => $request->revision_attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($request->revision_attachment_path) : null,
-            'total_estimated_price' => $request->items->sum(fn ($item) => ((float) ($item->estimated_price ?? 0)) * ((int) ($item->quantity ?? 0))),
-            'items' => $request->items->map(fn ($item) => [
+            'staff_ict' => $staffIct ? [
+                'name' => $staffIct->name,
+                'position' => $staffIct->job_title ?? $staffIct->role?->label() ?? 'Staff ICT',
+            ] : null,
+            'previous_deliverer' => $lastDeliverer ? [
+                'name' => $lastDeliverer->deliverer_name,
+                'position' => $lastDeliverer->deliverer_position,
+            ] : null,
+            'total_estimated_price' => $request->items
+                ->when(in_array($request->status, ['progress_ppm', 'progress_po', 'completed'], true), function ($items) {
+                    return $items->where('audit_status', '!=', 'takeout');
+                })
+                ->sum(fn ($item) => ((float) ($item->estimated_price ?? 0)) * ((int) ($item->quantity ?? 0))),
+            'items' => $request->items
+                // Filter: hide takeout items for PPM and beyond
+                ->when(in_array($request->status, ['progress_ppm', 'progress_po', 'completed'], true), function ($items) {
+                    return $items->where('audit_status', '!=', 'takeout');
+                })
+                ->map(fn ($item) => [
                 'id' => $item->id,
                 'item_category' => $item->item_category,
                 'item_name' => $item->item_name,
@@ -58,8 +100,18 @@
                 'ppnk_attachment_name' => $item->ppnkDocument?->attachment_name,
                 'ppnk_attachment_url' => $item->ppnkDocument?->attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($item->ppnkDocument->attachment_path) : null,
                 'ppnk_attachment_is_image' => str_starts_with((string) $item->ppnkDocument?->attachment_mime, 'image/'),
+                'ppm_number' => $item->ppmDocument?->ppm_number,
+                'ppm_attachment_name' => $item->ppmDocument?->attachment_name,
+                'ppm_attachment_url' => $item->ppmDocument?->attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($item->ppmDocument->attachment_path) : null,
+                'ppm_attachment_is_image' => str_starts_with((string) $item->ppmDocument?->attachment_mime, 'image/'),
+                'po_number' => $item->poDocument?->po_number,
+                'po_attachment_name' => $item->poDocument?->attachment_name,
+                'po_attachment_url' => $item->poDocument?->attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($item->poDocument->attachment_path) : null,
+                'po_attachment_is_image' => str_starts_with((string) $item->poDocument?->attachment_mime, 'image/'),
+                'pr_number' => $item->pr_number,
                 'audit_status' => $item->audit_status,
                 'audit_reason' => $item->audit_reason,
+                'takeout_qty' => $item->takeout_qty,
                 'quotations' => $item->quotations->map(fn ($quotation) => [
                     'vendor_name' => $quotation->vendor_name,
                     'attachment_name' => $quotation->attachment_name,
@@ -73,87 +125,346 @@
 @endphp
 
 <x-app-layout>
-    <div
-        x-data="{
-            selectedIds: [],
-            selectAllMatching: false,
-            detailMap: @js($requestDetails->keyBy('id')),
-            openDetailId: null,
-            printTarget: null,
-            ppnkTarget: null,
-            auditTarget: null,
-            openPrintModal(id) {
-                const targetId = String(id);
-                if ((this.detailMap[targetId]?.print_count ?? 0) > 0) {
+    @php
+        $pageIds = $requests->pluck('id')->map(fn ($id) => (string) $id)->values();
+    @endphp
+    <script>
+        function ictRequestsData() {
+            return {
+                pageIds: @js($pageIds),
+                selectedIds: [],
+                selectAllMatching: false,
+                detailMap: @js($requestDetails->keyBy('id')),
+                openDetailId: null,
+                printTarget: null,
+                ppnkTarget: null,
+                ppmTarget: null,
+                poTarget: null,
+                goodsReceiptTarget: null,
+                handoverTypes: {},
+                getHandoverType(index, defaultValue = 'asset') {
+                    return this.handoverTypes[index] || defaultValue;
+                },
+                setHandoverType(index, value) {
+                    this.handoverTypes[index] = value;
+                },
+                auditTarget: null,
+                auditStates: {},
+                getAuditState(index, field, defaultValue) {
+                    const key = `${index}_${field}`;
+                    return this.auditStates[key] || defaultValue;
+                },
+                setAuditState(index, field, value) {
+                    this.auditStates[`${index}_${field}`] = value;
+                },
+                validateTakeoutQty(index, maxQty) {
+                    const takeoutQty = this.getAuditState(index, 'takeout_qty', 0);
+                    if (parseInt(takeoutQty) > parseInt(maxQty)) {
+                        alert(`Jumlah takeout (${takeoutQty}) tidak boleh lebih dari jumlah barang (${maxQty})`);
+                        this.setAuditState(index, 'takeout_qty', maxQty);
+                        return false;
+                    }
+                    if (parseInt(takeoutQty) < 0) {
+                        this.setAuditState(index, 'takeout_qty', 0);
+                        return false;
+                    }
+                    return true;
+                },
+                getRemainingQty(index) {
+                    const item = this.detailMap[this.auditTarget]?.items?.[index];
+                    if (!item) return 0;
+                    const takeoutQty = this.getAuditState(index, 'takeout_qty', 0);
+                    const status = this.getAuditState(index, 'audit_status', 'approved');
+                    if (status === 'takeout') {
+                        return parseInt(item.quantity) - parseInt(takeoutQty);
+                    }
+                    return item.quantity;
+                },
+                openPrintModal(id) {
+                    const targetId = String(id);
+                    if ((this.detailMap[targetId]?.print_count ?? 0) > 0) {
+                        this.printTarget = targetId;
+                        this.submitPrint();
+                        return;
+                    }
                     this.printTarget = targetId;
-                    this.submitPrint();
-                    return;
-                }
-                this.printTarget = targetId;
-            },
-            closePrintModal() {
-                this.printTarget = null;
-            },
-            submitPrint() {
-                if (!this.printTarget) return;
-                this.$refs.printForm.action = this.detailMap[this.printTarget]?.print_url;
-                this.$refs.printForm.submit();
-                this.closePrintModal();
-            },
-            openPpnkModal(id) {
-                const targetId = String(id);
-                this.ppnkTarget = targetId;
-                this.$nextTick(() => {
-                    if (!this.$refs.ppnkForm) return;
-                    this.$refs.ppnkForm.action = this.detailMap[targetId]?.upload_ppnk_url ?? '';
-                });
-            },
-            closePpnkModal() {
-                this.ppnkTarget = null;
-                if (this.$refs.ppnkForm) {
-                    this.$refs.ppnkForm.reset();
-                }
-            },
-            openAuditModal(id) {
-                const targetId = String(id);
-                this.auditTarget = targetId;
-            },
-            closeAuditModal() {
-                this.auditTarget = null;
-                if (this.$refs.auditForm) {
-                    this.$refs.auditForm.reset();
-                }
-            },
-            get allSelectedOnPage() {
-                const pageIds = @js($requests->pluck('id')->map(fn ($id) => (string) $id)->values());
-                return pageIds.length > 0 && pageIds.every((id) => this.selectedIds.includes(id));
-            },
-            togglePageSelection(event) {
-                const pageIds = @js($requests->pluck('id')->map(fn ($id) => (string) $id)->values());
-                if (event.target.checked) {
-                    this.selectedIds = Array.from(new Set([...this.selectedIds, ...pageIds]));
-                } else {
-                    this.selectedIds = this.selectedIds.filter((id) => !pageIds.includes(id));
-                    this.selectAllMatching = false;
-                }
-            },
-            toggleSelectAllMatching() {
-                this.selectAllMatching = !this.selectAllMatching;
-            },
-            openDetail(id) {
-                this.openDetailId = String(id);
-            },
-            closeDetail() {
-                this.openDetailId = null;
-            },
-            formatCurrency(value) {
-                if (value === null || value === undefined || value === '') return '-';
-                return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
-            },
-            defaultPpnkNumber(index) {
-                return this.detailMap[this.ppnkTarget]?.items?.[index]?.ppnk_number ?? '';
-            }
-        }"
+                },
+                closePrintModal() {
+                    this.printTarget = null;
+                },
+                submitPrint() {
+                    if (!this.printTarget) return;
+                    this.$refs.printForm.action = this.detailMap[this.printTarget]?.print_url;
+                    this.$refs.printForm.submit();
+                    this.closePrintModal();
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 300);
+                },
+                openPpnkModal(id) {
+                    const targetId = String(id);
+                    this.ppnkTarget = targetId;
+                    this.$nextTick(() => {
+                        if (!this.$refs.ppnkForm) return;
+                        this.$refs.ppnkForm.action = this.detailMap[targetId]?.upload_ppnk_url ?? '';
+                    });
+                },
+                closePpnkModal() {
+                    this.ppnkTarget = null;
+                    if (this.$refs.ppnkForm) {
+                        this.$refs.ppnkForm.reset();
+                    }
+                },
+                submitPpnkForm() {
+                    if (!this.ppnkTarget) return;
+                    if (!confirm('Yakin ingin menyimpan PPNK / PPK? Data yang sudah disimpan akan masuk ke proses verifikasi audit.')) {
+                        return;
+                    }
+                    this.$refs.ppnkForm.submit();
+                },
+                openPpmModal(id) {
+                    const targetId = String(id);
+                    this.ppmTarget = targetId;
+                    this.$nextTick(() => {
+                        if (!this.$refs.ppmForm) return;
+                        this.$refs.ppmForm.action = this.detailMap[targetId]?.upload_ppm_url ?? '';
+                    });
+                },
+                closePpmModal() {
+                    this.ppmTarget = null;
+                    if (this.$refs.ppmForm) {
+                        this.$refs.ppmForm.reset();
+                    }
+                },
+                submitPpmForm() {
+                    if (!this.ppmTarget) return;
+                    if (!confirm('Yakin ingin menyimpan PPM? Data yang sudah disimpan akan masuk ke proses PO.')) {
+                        return;
+                    }
+                    this.$refs.ppmForm.submit();
+                },
+                openPoModal(id) {
+                    const targetId = String(id);
+                    this.poTarget = targetId;
+                    this.$nextTick(() => {
+                        if (!this.$refs.poForm) return;
+                        this.$refs.poForm.action = this.detailMap[targetId]?.upload_po_url ?? '';
+                    });
+                },
+                closePoModal() {
+                    this.poTarget = null;
+                    if (this.$refs.poForm) {
+                        this.$refs.poForm.reset();
+                    }
+                },
+                submitPoForm() {
+                    if (!this.poTarget) return;
+                    if (!confirm('Yakin ingin menyimpan PO? Data yang sudah disimpan akan masuk ke proses menunggu barang diterima.')) {
+                        return;
+                    }
+                    this.$refs.poForm.submit();
+                },
+                openGoodsReceiptModal(id) {
+                    const targetId = String(id);
+                    this.goodsReceiptTarget = targetId;
+                    // Initialize handover types setelah data dimuat
+                    this.$nextTick(() => {
+                        const items = this.getGoodsReceiptItems();
+                        this.handoverTypes = {};
+                        items.forEach((_, index) => {
+                            this.handoverTypes[index] = 'asset';
+                        });
+                    });
+                },
+                closeGoodsReceiptModal() {
+                    this.goodsReceiptTarget = null;
+                    if (this.$refs.goodsReceiptForm) {
+                        this.$refs.goodsReceiptForm.reset();
+                    }
+                },
+                submitGoodsReceiptForm() {
+                    if (!this.goodsReceiptTarget) return;
+                    if (!confirm('Yakin ingin memproses penerimaan barang ini? Status akan berubah menjadi Barang Sudah Diterima.')) {
+                        return;
+                    }
+                    this.$refs.goodsReceiptForm.submit();
+                },
+                /**
+                 * Menghitung jumlah unit yang diterima per item (qty - takeout_qty)
+                 * Mengembalikan array flat dimana setiap unit menjadi entry terpisah
+                 */
+                getGoodsReceiptItems() {
+                    const items = this.detailMap[this.goodsReceiptTarget]?.items ?? [];
+                    const result = [];
+                    items.forEach((item) => {
+                        // Gunakan quantity saat ini (sudah dikurangi jika ada partial takeout)
+                        // quantity di database sudah terupdate setelah partial takeout
+                        let receivedQty = parseInt(item.quantity) || 0;
+                        
+                        // Jika audit_status masih 'takeout' (full takeout), skip item ini
+                        if (item.audit_status === 'takeout') {
+                            return; // Skip item yang full takeout
+                        }
+                        
+                        // Jika ada takeout_qty tapi audit_status bukan 'takeout', 
+                        // berarti sudah partial takeout dan quantity sudah dikurangi
+                        // Jadi kita pakai quantity yang sudah ada
+                        
+                        // Buat entry terpisah untuk setiap unit yang diterima
+                        for (let i = 0; i < receivedQty; i++) {
+                            result.push({
+                                ...item,
+                                unitIndex: i,
+                                receivedQty: receivedQty,
+                            });
+                        }
+                    });
+                    return result;
+                },
+                openAuditModal(id) {
+                    const targetId = String(id);
+                    this.auditTarget = targetId;
+                    this.auditStates = {};
+                    const items = this.detailMap[targetId]?.items ?? [];
+                    items.forEach((item, index) => {
+                        this.setAuditState(index, 'audit_status', 'approved');
+                        this.setAuditState(index, 'takeout_qty', 0);
+                    });
+                },
+                closeAuditModal() {
+                    this.auditTarget = null;
+                    if (this.$refs.auditForm) {
+                        this.$refs.auditForm.reset();
+                    }
+                },
+                submitAuditForm() {
+                    if (!this.auditTarget) return;
+                    const items = this.detailMap[this.auditTarget]?.items ?? [];
+                    for (let index = 0; index < items.length; index++) {
+                        const item = items[index];
+                        const status = this.getAuditState(index, 'audit_status', 'approved');
+                        const takeoutQty = this.getAuditState(index, 'takeout_qty', 0);
+                        if (status === 'takeout' && parseInt(item.quantity) > 1) {
+                            if (parseInt(takeoutQty) > parseInt(item.quantity)) {
+                                alert(`Error: Jumlah takeout untuk "${item.item_name}" (${takeoutQty}) tidak boleh lebih dari jumlah barang (${item.quantity})`);
+                                return;
+                            }
+                            if (parseInt(takeoutQty) <= 0) {
+                                alert(`Error: Jumlah takeout untuk "${item.item_name}" harus lebih dari 0`);
+                                return;
+                            }
+                        }
+                    }
+                    if (!confirm('Yakin submit verifikasi audit? Barang yang di-takeout tidak bisa diproses.')) {
+                        return;
+                    }
+                    this.$refs.auditForm.submit();
+                },
+                get allSelectedOnPage() {
+                    return this.pageIds.length > 0 && this.pageIds.every((id) => this.selectedIds.includes(id));
+                },
+                togglePageSelection(event) {
+                    if (event.target.checked) {
+                        this.selectedIds = Array.from(new Set([...this.selectedIds, ...this.pageIds]));
+                    } else {
+                        this.selectedIds = this.selectedIds.filter((id) => !this.pageIds.includes(id));
+                        this.selectAllMatching = false;
+                    }
+                },
+                toggleSelectAllMatching() {
+                    this.selectAllMatching = !this.selectAllMatching;
+                },
+                openDetail(id) {
+                    this.openDetailId = String(id);
+                },
+                closeDetail() {
+                    this.openDetailId = null;
+                },
+                formatCurrency(value) {
+                    if (value === null || value === undefined || value === '') return '-';
+                    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
+                },
+                defaultPpnkNumber(index) {
+                    return this.detailMap[this.ppnkTarget]?.items?.[index]?.ppnk_number ?? '';
+                },
+                defaultPpmNumber(index) {
+                    return this.detailMap[this.ppmTarget]?.items?.[index]?.ppm_number ?? '';
+                },
+                /**
+                 * Menghitung unit yang perlu input PPNK per item
+                 * Mengembalikan array flat dimana setiap unit menjadi entry terpisah
+                 */
+                getPpnkItems() {
+                    const items = this.detailMap[this.ppnkTarget]?.items ?? [];
+                    const result = [];
+                    items.forEach((item) => {
+                        let qty = parseInt(item.quantity) || 0;
+                        // Buat entry terpisah untuk setiap unit
+                        for (let i = 0; i < qty; i++) {
+                            result.push({
+                                ...item,
+                                unitIndex: i,
+                                totalQty: qty,
+                            });
+                        }
+                    });
+                    return result;
+                },
+                /**
+                 * Menghitung unit yang perlu input PPM per item
+                 * Hanya item yang disetujui (bukan takeout)
+                 */
+                getPpmItems() {
+                    const items = this.detailMap[this.ppmTarget]?.items ?? [];
+                    const result = [];
+                    items.forEach((item) => {
+                        // Skip item yang full takeout
+                        if (item.audit_status === 'takeout') {
+                            return;
+                        }
+                        
+                        let qty = parseInt(item.quantity) || 0;
+                        // Buat entry terpisah untuk setiap unit
+                        for (let i = 0; i < qty; i++) {
+                            result.push({
+                                ...item,
+                                unitIndex: i,
+                                totalQty: qty,
+                            });
+                        }
+                    });
+                    return result;
+                },
+                /**
+                 * Menghitung unit yang perlu input PO per item
+                 * Hanya item yang disetujui (bukan takeout)
+                 */
+                getPoItems() {
+                    const items = this.detailMap[this.poTarget]?.items ?? [];
+                    const result = [];
+                    items.forEach((item) => {
+                        // Skip item yang full takeout
+                        if (item.audit_status === 'takeout') {
+                            return;
+                        }
+                        
+                        let qty = parseInt(item.quantity) || 0;
+                        // Buat entry terpisah untuk setiap unit
+                        for (let i = 0; i < qty; i++) {
+                            result.push({
+                                ...item,
+                                unitIndex: i,
+                                totalQty: qty,
+                            });
+                        }
+                    });
+                    return result;
+                },
+            };
+        }
+    </script>
+    <div
+        x-data="ictRequestsData()"
         class="space-y-6"
     >
         @if (session('status'))
@@ -322,7 +633,7 @@
                                         <x-heroicon-o-eye class="ui-action-icon" />
                                     </x-button>
 
-                                    @if (auth()->user()->canCreateIctRequest() && !in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'completed'], true))
+                                    @if (auth()->user()->canCreateIctRequest() && !in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'completed'], true))
                                         <x-button :href="route('forms.ict-requests.edit', $request)" variant="action-neutral" title="Edit">
                                             <x-heroicon-o-pencil-square class="ui-action-icon" />
                                         </x-button>
@@ -360,7 +671,31 @@
                                         </x-button>
                                     @endif
 
-                                    @if (auth()->user()->canCreateIctRequest() && !in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'completed'], true))
+                                    @if ($request->status === 'progress_ppm' && auth()->user()->isIctAdmin())
+                                        <x-button type="button" variant="action-review" x-on:click="openPpmModal('{{ $request->id }}')" title="Upload Data PPM">
+                                            <x-heroicon-o-document-chart-bar class="ui-action-icon" />
+                                        </x-button>
+                                    @endif
+
+                                    @if ($request->status === 'progress_po' && auth()->user()->isIctAdmin())
+                                        <x-button type="button" variant="action-review" x-on:click="openPoModal('{{ $request->id }}')" title="Upload Data PO">
+                                            <x-heroicon-o-clipboard-document-check class="ui-action-icon" />
+                                        </x-button>
+                                    @endif
+
+                                    @if ($request->status === 'progress_waiting_goods' && auth()->user()->isIctAdmin())
+                                        <x-button type="button" variant="action-success" x-on:click="openGoodsReceiptModal('{{ $request->id }}')" title="Penerimaan Barang">
+                                            <x-heroicon-o-check-circle class="ui-action-icon" />
+                                        </x-button>
+                                    @endif
+
+                                    @if ($request->status === 'progress_verifikasi_audit' && auth()->user()->isIctAdmin())
+                                        <x-button type="button" variant="action-review" x-on:click="openAuditModal('{{ $request->id }}')" title="Verifikasi Audit">
+                                            <x-heroicon-o-clipboard-document-check class="ui-action-icon" />
+                                        </x-button>
+                                    @endif
+
+                                    @if (auth()->user()->canCreateIctRequest() && !in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'completed'], true))
                                         <form method="POST" action="{{ route('forms.ict-requests.bulk-destroy') }}" onsubmit="return confirm('Hapus permintaan ini?')">
                                             @csrf
                                             @method('DELETE')
@@ -648,17 +983,24 @@
                     </button>
                 </div>
 
-                <form x-ref="ppnkForm" method="POST" enctype="multipart/form-data" class="flex min-h-0 flex-1 flex-col">
+                                <form x-ref="ppnkForm" method="POST" enctype="multipart/form-data" x-on:submit.prevent="submitPpnkForm()" class="flex min-h-0 flex-1 flex-col">
                     @csrf
 
                     <div class="flex-1 overflow-y-auto px-5 py-4">
-                        <p class="mb-4 text-xs text-ink-500">Isi nomor per barang. Jika nomor sama, cukup upload file pada salah satu baris dengan nomor yang sama.</p>
+                        <p class="mb-4 text-xs text-ink-500">Isi nomor per unit barang. Jika nomor sama, cukup upload file pada salah satu baris dengan nomor yang sama.</p>
 
                         <div class="space-y-3">
-                            <template x-for="(item, index) in detailMap[ppnkTarget]?.items ?? []" :key="`ppnk-${item.id}`">
+                            <template x-for="(item, index) in getPpnkItems()" :key="`ppnk-${item.id}-${item.unitIndex}`">
                                 <div class="rounded-2xl border border-ink-100 bg-ink-50/50 p-4">
                                     <div class="font-semibold text-ink-900" x-text="item.item_name"></div>
-                                    <div class="mt-1 text-xs text-ink-500" x-text="item.brand_type || item.item_category || '-'"></div>
+                                    <div class="mt-1 text-xs text-ink-500">
+                                        <span x-text="`Unit ${item.unitIndex + 1} dari ${item.totalQty}`"></span>
+                                        <span class="mx-1">•</span>
+                                        <span x-text="item.brand_type || item.item_category || '-'"></span>
+                                    </div>
+
+                                    <input type="hidden" :name="`items[${index}][item_id]`" :value="item.id" />
+                                    <input type="hidden" :name="`items[${index}][unit_index]`" :value="item.unitIndex" />
 
                                     <div class="mt-3 grid gap-3 md:grid-cols-2">
                                         <div>
@@ -698,7 +1040,7 @@
                             <p class="text-xs text-ink-500">Berkas dapat berupa PDF atau gambar. Nomor yang sama akan memakai satu dokumen yang sama.</p>
                             <div class="flex justify-end gap-2">
                                 <x-button type="button" variant="secondary" x-on:click="closePpnkModal()" class="px-4 py-2.5">Batal</x-button>
-                                <x-button type="submit" x-on:click="if (!confirm('Yakin ingin menyimpan PPNK / PPK? Data yang sudah disimpan akan masuk ke proses verifikasi audit.')) { $event.preventDefault(); }" class="px-4 py-2.5">Simpan PPNK / PPK</x-button>
+                                <x-button type="submit" class="px-4 py-2.5">Simpan PPNK / PPK</x-button>
                             </div>
                         </div>
                     </div>
@@ -729,6 +1071,188 @@
         </div>
 
         <div
+            x-show="ppmTarget"
+            x-cloak
+            x-transition.opacity.duration.200ms
+            x-on:keydown.escape.window="closePpmModal()"
+            class="fixed inset-0 z-[70] flex items-center justify-center bg-ink-900/50 p-4"
+        >
+            <div class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+                <div class="flex items-start justify-between gap-4 border-b border-ink-100 px-5 py-4">
+                    <div>
+                        <h3 class="font-display text-lg font-semibold text-ink-900">Upload Data PPM</h3>
+                        <p class="mt-1 text-sm text-ink-500" x-text="detailMap[ppmTarget]?.subject || ''"></p>
+                    </div>
+                    <button type="button" x-on:click="closePpmModal()" class="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-ink-200 text-ink-600 transition hover:bg-ink-50">
+                        <x-heroicon-o-x-mark class="h-4 w-4" />
+                    </button>
+                </div>
+
+                <form x-ref="ppmForm" method="POST" enctype="multipart/form-data" x-on:submit.prevent="submitPpmForm()" class="flex min-h-0 flex-1 flex-col">
+                    @csrf
+
+                    <div class="flex-1 overflow-y-auto px-5 py-4">
+                        <p class="mb-4 text-xs text-ink-500">Isi data PPM dan PR per unit barang yang disetujui (bukan takeout). Jika nomor PPM sama, cukup upload file pada salah satu baris.</p>
+
+                        <div class="space-y-3">
+                            <template x-for="(item, index) in getPpmItems()" :key="`ppm-${item.id}-${item.unitIndex}`">
+                                <div class="rounded-2xl border border-ink-100 bg-ink-50/50 p-4">
+                                    <div class="font-semibold text-ink-900" x-text="item.item_name"></div>
+                                    <div class="mt-1 text-xs text-ink-500">
+                                        <span x-text="`Unit ${item.unitIndex + 1} dari ${item.totalQty}`"></span>
+                                        <span class="mx-1">•</span>
+                                        <span x-text="item.brand_type || item.item_category || '-'"></span>
+                                    </div>
+
+                                    <input type="hidden" :name="`items[${index}][item_id]`" :value="item.id" />
+                                    <input type="hidden" :name="`items[${index}][unit_index]`" :value="item.unitIndex" />
+
+                                    <div class="mt-3 grid gap-3 md:grid-cols-4">
+                                        <div>
+                                            <label class="block text-xs font-medium text-ink-600">No. Urut</label>
+                                            <input
+                                                type="text"
+                                                :name="`items[${index}][line_number]`"
+                                                placeholder="Contoh: 4"
+                                                class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-ink-600">No. PPM</label>
+                                            <input
+                                                type="text"
+                                                :name="`items[${index}][ppm_number]`"
+                                                placeholder="PP-JAR-0024-III-2024"
+                                                class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-ink-600">No. PR</label>
+                                            <input
+                                                type="text"
+                                                :name="`items[${index}][pr_number]`"
+                                                placeholder="3000043632"
+                                                class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-ink-600">Upload Berkas</label>
+                                            <input
+                                                type="file"
+                                                :name="`items[${index}][ppm_attachment]`"
+                                                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <template x-if="item.ppm_attachment_name">
+                                        <div class="mt-2 text-xs text-amber-700">
+                                            File saat ini:
+                                            <a :href="item.ppm_attachment_url" target="_blank" class="font-semibold hover:underline" x-text="item.ppm_attachment_name"></a>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-ink-100 px-5 py-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p class="text-xs text-ink-500">Berkas dapat berupa PDF atau gambar. Setelah submit, status berubah menjadi Progress PO.</p>
+                            <div class="flex justify-end gap-2">
+                                <x-button type="button" variant="secondary" x-on:click="closePpmModal()" class="px-4 py-2.5">Batal</x-button>
+                                <x-button type="submit" class="px-4 py-2.5">Simpan PPM</x-button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div
+            x-show="poTarget"
+            x-cloak
+            x-transition.opacity.duration.200ms
+            x-on:keydown.escape.window="closePoModal()"
+            class="fixed inset-0 z-[70] flex items-center justify-center bg-ink-900/50 p-4"
+        >
+            <div class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+                <div class="flex items-start justify-between gap-4 border-b border-ink-100 px-5 py-4">
+                    <div>
+                        <h3 class="font-display text-lg font-semibold text-ink-900">Upload Data PO</h3>
+                        <p class="mt-1 text-sm text-ink-500" x-text="detailMap[poTarget]?.subject || ''"></p>
+                    </div>
+                    <button type="button" x-on:click="closePoModal()" class="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-ink-200 text-ink-600 transition hover:bg-ink-50">
+                        <x-heroicon-o-x-mark class="h-4 w-4" />
+                    </button>
+                </div>
+
+                <form x-ref="poForm" method="POST" enctype="multipart/form-data" x-on:submit.prevent="submitPoForm()" class="flex min-h-0 flex-1 flex-col">
+                    @csrf
+
+                    <div class="flex-1 overflow-y-auto px-5 py-4">
+                        <p class="mb-4 text-xs text-ink-500">Isi nomor PO per unit barang yang disetujui (bukan takeout). Jika nomor sama, cukup upload file pada salah satu baris dengan nomor yang sama.</p>
+
+                        <div class="space-y-3">
+                            <template x-for="(item, index) in getPoItems()" :key="`po-${item.id}-${item.unitIndex}`">
+                                <div class="rounded-2xl border border-ink-100 bg-ink-50/50 p-4">
+                                    <div class="font-semibold text-ink-900" x-text="item.item_name"></div>
+                                    <div class="mt-1 text-xs text-ink-500">
+                                        <span x-text="`Unit ${item.unitIndex + 1} dari ${item.totalQty}`"></span>
+                                        <span class="mx-1">•</span>
+                                        <span x-text="item.brand_type || item.item_category || '-'"></span>
+                                    </div>
+
+                                    <input type="hidden" :name="`items[${index}][item_id]`" :value="item.id" />
+                                    <input type="hidden" :name="`items[${index}][unit_index]`" :value="item.unitIndex" />
+
+                                    <div class="mt-3 grid gap-3 md:grid-cols-2">
+                                        <div>
+                                            <label class="block text-xs font-medium text-ink-600">No. PO</label>
+                                            <input
+                                                type="text"
+                                                :name="`items[${index}][po_number]`"
+                                                placeholder="Contoh: 5001131743"
+                                                class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-ink-600">Upload Berkas</label>
+                                            <input
+                                                type="file"
+                                                :name="`items[${index}][po_attachment]`"
+                                                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <template x-if="item.po_attachment_name">
+                                        <div class="mt-2 text-xs text-amber-700">
+                                            File saat ini:
+                                            <a :href="item.po_attachment_url" target="_blank" class="font-semibold hover:underline" x-text="item.po_attachment_name"></a>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-ink-100 px-5 py-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p class="text-xs text-ink-500">Berkas dapat berupa PDF atau gambar. Setelah submit, status berubah menjadi Progress Menunggu Barang Diterima.</p>
+                            <div class="flex justify-end gap-2">
+                                <x-button type="button" variant="secondary" x-on:click="closePoModal()" class="px-4 py-2.5">Batal</x-button>
+                                <x-button type="submit" class="px-4 py-2.5">Simpan PO</x-button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div
             x-show="auditTarget"
             x-cloak
             x-transition.opacity.duration.200ms
@@ -746,7 +1270,7 @@
                     </button>
                 </div>
 
-                <form x-ref="auditForm" method="POST" :action="detailMap[auditTarget]?.verify_audit_url" enctype="multipart/form-data" class="flex min-h-0 flex-1 flex-col">
+                <form x-ref="auditForm" method="POST" :action="detailMap[auditTarget]?.verify_audit_url" x-on:submit.prevent="submitAuditForm()" class="flex min-h-0 flex-1 flex-col">
                     @csrf
 
                     <div class="flex-1 overflow-y-auto px-5 py-4">
@@ -764,19 +1288,45 @@
                                                 <span x-text="`${item.quantity} ${item.unit || ''}`"></span>
                                             </div>
                                             <div class="mt-0.5 text-xs text-ink-400" x-text="item.brand_type || '-'"></div>
+                                            <!-- Remaining Qty Info -->
+                                            <div class="mt-2" x-show="getAuditState(index, 'audit_status') === 'takeout' && parseInt(item.quantity) > 1">
+                                                <span class="text-xs font-semibold text-amber-700">Sisa Qty: </span>
+                                                <span class="text-xs font-bold text-ink-900" x-text="getRemainingQty(index) + ' ' + (item.unit || '')"></span>
+                                            </div>
                                         </div>
 
                                         <div class="md:col-span-2">
+                                            <input type="hidden" :name="`items[${index}][item_id]`" :value="item.id" />
+                                            <input type="hidden" :name="`items[${index}][audit_status]`" :value="getAuditState(index, 'audit_status', 'approved')" />
+
                                             <label class="block text-xs font-medium text-ink-600">Status Audit</label>
                                             <div class="mt-2 flex gap-4">
                                                 <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 transition hover:bg-green-100 has-[:checked]:border-green-500 has-[:checked]:bg-green-100 has-[:checked]:ring-2 has-[:checked]:ring-green-500/30">
-                                                    <input type="radio" :name="`items[${index}][audit_status]`" value="approved" checked class="h-4 w-4 border-green-600 text-green-600 focus:ring-green-500" />
+                                                    <input type="radio" :name="`items[${index}][audit_status_radio]`" value="approved" :checked="getAuditState(index, 'audit_status') === 'approved'" x-on:change="setAuditState(index, 'audit_status', 'approved')" class="h-4 w-4 border-green-600 text-green-600 focus:ring-green-500" />
                                                     <span class="text-sm font-semibold text-green-700">Disetujui</span>
                                                 </label>
                                                 <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 transition hover:bg-red-100 has-[:checked]:border-red-500 has-[:checked]:bg-red-100 has-[:checked]:ring-2 has-[:checked]:ring-red-500/30">
-                                                    <input type="radio" :name="`items[${index}][audit_status]`" value="takeout" class="h-4 w-4 border-red-600 text-red-600 focus:ring-red-500" />
+                                                    <input type="radio" :name="`items[${index}][audit_status_radio]`" value="takeout" :checked="getAuditState(index, 'audit_status') === 'takeout'" x-on:change="setAuditState(index, 'audit_status', 'takeout')" class="h-4 w-4 border-red-600 text-red-600 focus:ring-red-500" />
                                                     <span class="text-sm font-semibold text-red-700">Takeout</span>
                                                 </label>
+                                            </div>
+
+                                            <!-- Takeout Qty Input (only shows when status is takeout AND qty > 1) -->
+                                            <div class="mt-3" x-show="getAuditState(index, 'audit_status') === 'takeout' && parseInt(item.quantity) > 1" x-cloak>
+                                                <label class="block text-xs font-medium text-ink-600">Jumlah Takeout</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    :max="item.quantity"
+                                                    :name="`items[${index}][takeout_qty]`"
+                                                    x-model.number="auditStates[index + '_takeout_qty']"
+                                                    x-on:input="validateTakeoutQty(index, item.quantity)"
+                                                    x-on:blur="validateTakeoutQty(index, item.quantity)"
+                                                    :value="getAuditState(index, 'takeout_qty', item.quantity)"
+                                                    placeholder="Masukkan jumlah yang di-takeout"
+                                                    class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-red-500"
+                                                />
+                                                <p class="mt-1 text-xs text-amber-600">Masukkan jumlah yang akan di-takeout (max: <span x-text="item.quantity"></span>)</p>
                                             </div>
 
                                             <label class="mt-3 block">
@@ -800,9 +1350,282 @@
                             <p class="text-xs text-ink-500">Setelah submit, status berubah menjadi Progress PPM. Barang yang di-takeout tidak diproses.</p>
                             <div class="flex justify-end gap-2">
                                 <x-button type="button" variant="secondary" x-on:click="closeAuditModal()" class="px-4 py-2.5">Batal</x-button>
-                                <x-button type="submit" x-on:click="if (!confirm('Yakin submit verifikasi audit? Barang yang di-takeout tidak bisa diproses.')) { $event.preventDefault(); }" class="px-4 py-2.5">
+                                <x-button type="submit" class="px-4 py-2.5">
                                     <x-heroicon-o-check-circle class="mr-2 h-4 w-4" />
                                     Submit Verifikasi
+                                </x-button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Goods Receipt Modal -->
+        <div
+            x-show="goodsReceiptTarget"
+            x-cloak
+            x-transition.opacity.duration.200ms
+            x-on:keydown.escape.window="closeGoodsReceiptModal()"
+            class="fixed inset-0 z-[80] flex items-start justify-center bg-ink-900/50 p-4 overflow-y-auto"
+        >
+            <div class="w-full max-w-6xl rounded-3xl bg-white shadow-2xl my-8">
+                <div class="flex items-center justify-between border-b border-ink-100 px-6 py-4">
+                    <div>
+                        <h2 class="font-display text-xl font-semibold text-ink-900">Penerimaan Barang</h2>
+                        <p class="mt-1 text-sm text-ink-500" x-text="detailMap[goodsReceiptTarget]?.subject || ''"></p>
+                    </div>
+                    <button type="button" x-on:click="closeGoodsReceiptModal()" class="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-ink-200 text-ink-600 transition hover:bg-ink-50">
+                        <x-heroicon-o-x-mark class="h-4 w-4" />
+                    </button>
+                </div>
+
+                <form x-ref="goodsReceiptForm" method="POST" :action="detailMap[goodsReceiptTarget]?.goods_receipt_url ?? ''" enctype="multipart/form-data" x-on:submit.prevent="submitGoodsReceiptForm()" class="flex min-h-0 flex-1 flex-col">
+                    @csrf
+
+                    <div class="flex-1 overflow-y-auto px-5 py-4">
+                        <p class="mb-4 text-xs text-ink-500">Pilih apakah barang akan dimasukkan ke list asset atau tidak. Untuk asset otomatis akan dibuatkan Berita Acara Serah Terima.</p>
+
+                        <div class="space-y-4">
+                            <template x-for="(item, index) in getGoodsReceiptItems()" :key="`goods-receipt-${item.id}-${item.unitIndex}`">
+                                <div class="rounded-2xl border-2 border-brand-200 bg-brand-50/50 p-5">
+                                    <div class="mb-4 flex items-center gap-3">
+                                        <div class="flex-1">
+                                            <div class="font-semibold text-ink-900" x-text="item.item_name"></div>
+                                            <div class="mt-1 text-xs text-ink-500">
+                                                <span x-text="item.item_category || '-'"></span>
+                                                <span class="mx-1">•</span>
+                                                <span x-text="`Unit ${item.unitIndex + 1} dari ${item.receivedQty}`"></span>
+                                                <span class="mx-1">•</span>
+                                                <span x-text="item.brand_type || '-'"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <input type="hidden" :name="`items[${index}][item_id]`" :value="item.id" />
+                                    <input type="hidden" :name="`items[${index}][unit_index]`" :value="item.unitIndex" />
+
+                                    <!-- Handover Type Selection -->
+                                    <div class="mb-4">
+                                        <label class="block text-sm font-medium text-ink-700 mb-2">Jenis Penerimaan</label>
+                                        <div class="flex gap-4">
+                                            <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-brand-200 bg-white px-4 py-3 transition hover:bg-brand-50 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-100 has-[:checked]:ring-2 has-[:checked]:ring-brand-500/30">
+                                                <input type="radio" :name="`items[${index}][handover_type]`" :value="'asset'" :id="`handover_asset_${index}`" :checked="getHandoverType(index) === 'asset'" x-on:change="setHandoverType(index, 'asset')" class="h-4 w-4 border-brand-600 text-brand-600 focus:ring-brand-500" />
+                                                <span class="text-sm font-semibold text-brand-700">Masukkan ke Asset</span>
+                                            </label>
+                                            <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-ink-200 bg-white px-4 py-3 transition hover:bg-ink-50 has-[:checked]:border-ink-500 has-[:checked]:bg-ink-100 has-[:checked]:ring-2 has-[:checked]:ring-ink-500/30">
+                                                <input type="radio" :name="`items[${index}][handover_type]`" :value="'non_asset'" :id="`handover_non_asset_${index}`" :checked="getHandoverType(index) === 'non_asset'" x-on:change="setHandoverType(index, 'non_asset')" class="h-4 w-4 border-ink-600 text-ink-600 focus:ring-ink-500" />
+                                                <span class="text-sm font-semibold text-ink-700">Tidak Asset</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Non-Asset Fields -->
+                                    <template x-if="getHandoverType(index) === 'non_asset'">
+                                        <div class="space-y-3">
+                                            <div>
+                                                <label class="block text-xs font-medium text-ink-600">Keterangan</label>
+                                                <textarea
+                                                    :name="`items[${index}][description]`"
+                                                    rows="3"
+                                                    placeholder="Keterangan penerimaan barang"
+                                                    class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                ></textarea>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-ink-600">Upload Surat Jalan (PDF/Gambar)</label>
+                                                <input
+                                                    type="file"
+                                                    :name="`items[${index}][surat_jalan]`"
+                                                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                    class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
+                                                />
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- Asset Fields -->
+                                    <template x-if="getHandoverType(index) === 'asset'">
+                                        <div class="space-y-4">
+                                        <div class="grid gap-3 md:grid-cols-2">
+                                            <div>
+                                                <label class="block text-xs font-medium text-ink-600">Dept</label>
+                                                <input
+                                                    type="text"
+                                                    :name="`items[${index}][dept]`"
+                                                    placeholder="Contoh: IT Department"
+                                                    class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-ink-600">Model / Spesifikasi</label>
+                                                <input
+                                                    type="text"
+                                                    :name="`items[${index}][model_specification]`"
+                                                    placeholder="Model atau spesifikasi barang"
+                                                    class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div class="grid gap-3 md:grid-cols-2">
+                                            <div>
+                                                <label class="block text-xs font-medium text-ink-600">Serial Number</label>
+                                                <input
+                                                    type="text"
+                                                    :name="`items[${index}][serial_number]`"
+                                                    placeholder="Nomor seri barang"
+                                                    class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-ink-600">Nomor Asset</label>
+                                                <input
+                                                    type="text"
+                                                    :name="`items[${index}][asset_number]`"
+                                                    placeholder="Nomor asset (jika ada)"
+                                                    class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div class="border-t border-ink-200 pt-4">
+                                            <h4 class="mb-3 text-sm font-semibold text-ink-900">Informasi Penerima</h4>
+                                            <div class="grid gap-3 md:grid-cols-2">
+                                                <div>
+                                                    <label class="block text-xs font-medium text-ink-600">Nama Penerima</label>
+                                                    <input
+                                                        type="text"
+                                                        :name="`items[${index}][recipient_name]`"
+                                                        placeholder="Nama penerima barang"
+                                                        class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-medium text-ink-600">Jabatan Penerima</label>
+                                                    <input
+                                                        type="text"
+                                                        :name="`items[${index}][recipient_position]`"
+                                                        placeholder="Jabatan penerima"
+                                                        class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="border-t border-ink-200 pt-4">
+                                            <h4 class="mb-3 text-sm font-semibold text-ink-900">Atasan Penerima</h4>
+                                            <div class="grid gap-3 md:grid-cols-2">
+                                                <div>
+                                                    <label class="block text-xs font-medium text-ink-600">Nama Atasan</label>
+                                                    <input
+                                                        type="text"
+                                                        :name="`items[${index}][supervisor_name]`"
+                                                        placeholder="Nama atasan penerima"
+                                                        class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-medium text-ink-600">Jabatan Atasan</label>
+                                                    <input
+                                                        type="text"
+                                                        :name="`items[${index}][supervisor_position]`"
+                                                        placeholder="Jabatan atasan"
+                                                        class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="border-t border-ink-200 pt-4">
+                                            <h4 class="mb-3 text-sm font-semibold text-ink-900">Diserahkan Oleh (HRGA)</h4>
+                                            <p class="mb-2 text-xs text-amber-600">Otomatis terisi dari data HRGA terakhir pada unit ini (bisa diedit)</p>
+                                            <div class="grid gap-3 md:grid-cols-2">
+                                                <div>
+                                                    <label class="block text-xs font-medium text-ink-600">Nama HRGA</label>
+                                                    <input
+                                                        type="text"
+                                                        :name="`items[${index}][deliverer_name]`"
+                                                        :placeholder="detailMap[goodsReceiptTarget]?.previous_deliverer?.name || 'Nama penyerah dari HRGA'"
+                                                        :value="detailMap[goodsReceiptTarget]?.previous_deliverer?.name || ''"
+                                                        class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-medium text-ink-600">Jabatan HRGA</label>
+                                                    <input
+                                                        type="text"
+                                                        :name="`items[${index}][deliverer_position]`"
+                                                        :placeholder="detailMap[goodsReceiptTarget]?.previous_deliverer?.position || 'Jabatan HRGA'"
+                                                        :value="detailMap[goodsReceiptTarget]?.previous_deliverer?.position || ''"
+                                                        class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="border-t border-ink-200 pt-4">
+                                            <h4 class="mb-3 text-sm font-semibold text-ink-900">Diketahui Oleh (Staff ICT)</h4>
+                                            <p class="mb-2 text-xs text-amber-600">Otomatis terisi dari Staff ICT pada unit ini (bisa diedit)</p>
+                                            <div class="grid gap-3 md:grid-cols-2">
+                                                <div>
+                                                    <label class="block text-xs font-medium text-ink-600">Nama (ICT Staff)</label>
+                                                    <input
+                                                        type="text"
+                                                        :name="`items[${index}][witness_name]`"
+                                                        :placeholder="detailMap[goodsReceiptTarget]?.staff_ict?.name || 'Nama staff ICT'"
+                                                        :value="detailMap[goodsReceiptTarget]?.staff_ict?.name || ''"
+                                                        class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-medium text-ink-600">Jabatan</label>
+                                                    <input
+                                                        type="text"
+                                                        :name="`items[${index}][witness_position]`"
+                                                        :placeholder="detailMap[goodsReceiptTarget]?.staff_ict?.position || 'Jabatan staff ICT'"
+                                                        :value="detailMap[goodsReceiptTarget]?.staff_ict?.position || ''"
+                                                        class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="grid gap-3 md:grid-cols-2">
+                                            <div>
+                                                <label class="block text-xs font-medium text-ink-600">Upload Surat Jalan</label>
+                                                <input
+                                                    type="file"
+                                                    :name="`items[${index}][surat_jalan]`"
+                                                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                    class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-ink-600">Upload Foto Barang</label>
+                                                <p class="text-xs text-amber-600 mb-1">Foto ini akan dilampirkan di berkas Berita Acara Serah Terima</p>
+                                                <input
+                                                    type="file"
+                                                    :name="`items[${index}][serah_terima]`"
+                                                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                    class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
+                                                />
+                                            </div>
+                                        </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-ink-100 px-5 py-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p class="text-xs text-ink-500">Setelah submit, status berubah menjadi Barang Sudah Diterima. Asset akan otomatis dibuatkan Berita Acara Serah Terima.</p>
+                            <div class="flex justify-end gap-2">
+                                <x-button type="button" variant="secondary" x-on:click="closeGoodsReceiptModal()" class="px-4 py-2.5">Batal</x-button>
+                                <x-button type="submit" class="px-4 py-2.5">
+                                    <x-heroicon-o-check-circle class="mr-2 h-4 w-4" />
+                                    Simpan Penerimaan Barang
                                 </x-button>
                             </div>
                         </div>

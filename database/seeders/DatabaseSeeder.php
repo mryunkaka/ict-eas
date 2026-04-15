@@ -7,6 +7,7 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -29,7 +30,7 @@ class DatabaseSeeder extends Seeder
         ], [
             'unit_id' => $eas->id,
             'name' => 'Super Admin EAS',
-            'password' => 'password',
+            'password' => Hash::make('password'),
             'role' => UserRole::SuperAdmin,
             'job_title' => 'Manager ICT',
             'is_active' => true,
@@ -40,7 +41,7 @@ class DatabaseSeeder extends Seeder
         ], [
             'unit_id' => $eas->id,
             'name' => 'Admin ICT',
-            'password' => 'password',
+            'password' => Hash::make('password'),
             'role' => UserRole::AdminIct,
             'job_title' => 'Admin ICT',
             'is_active' => true,
@@ -51,7 +52,7 @@ class DatabaseSeeder extends Seeder
         ], [
             'unit_id' => $eas->id,
             'name' => 'Staff ICT',
-            'password' => 'password',
+            'password' => Hash::make('password'),
             'role' => UserRole::StaffIct,
             'job_title' => 'Staff ICT',
             'is_active' => true,
@@ -62,7 +63,7 @@ class DatabaseSeeder extends Seeder
         ], [
             'unit_id' => $eas->id,
             'name' => 'Asmen ICT',
-            'password' => 'password',
+            'password' => Hash::make('password'),
             'role' => UserRole::AsmenIct,
             'job_title' => 'Asisten Manager ICT',
             'is_active' => true,
@@ -73,7 +74,7 @@ class DatabaseSeeder extends Seeder
         ], [
             'unit_id' => $eas->id,
             'name' => 'Manager ICT',
-            'password' => 'password',
+            'password' => Hash::make('password'),
             'role' => UserRole::ManagerIct,
             'job_title' => 'Manager ICT',
             'is_active' => true,

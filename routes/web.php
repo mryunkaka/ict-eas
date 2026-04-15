@@ -31,6 +31,10 @@ Route::middleware('auth')->group(function () {
         Route::post('ict-requests/{ictRequest}/print', [IctRequestController::class, 'print'])->name('ict-requests.print');
         Route::post('ict-requests/{ictRequest}/ppnk', [IctRequestController::class, 'storePpnk'])->name('ict-requests.ppnk.store');
         Route::post('ict-requests/{ictRequest}/verify-audit', [IctRequestController::class, 'verifyAuditPpnk'])->name('ict-requests.verify-audit');
+        Route::post('ict-requests/{ictRequest}/ppm', [IctRequestController::class, 'storePpm'])->name('ict-requests.ppm.store');
+        Route::post('ict-requests/{ictRequest}/po', [IctRequestController::class, 'storePo'])->name('ict-requests.po.store');
+        Route::post('ict-requests/{ictRequest}/goods-receipt', [IctRequestController::class, 'storeGoodsReceipt'])->name('ict-requests.goods-receipt.store');
+        Route::get('ict-requests/{ictRequest}/handover-report/{assetHandover}/pdf', [IctRequestController::class, 'handoverReportPdf'])->name('ict-requests.handover-report.pdf');
         Route::delete('ict-requests/bulk-destroy', [IctRequestController::class, 'bulkDestroy'])->name('ict-requests.bulk-destroy');
         Route::delete('ict-requests/{ictRequest}/permanent', [IctRequestController::class, 'permanentDestroy'])->name('ict-requests.permanent-destroy');
         Route::resource('ict-requests', IctRequestController::class)->only(['index', 'create', 'store', 'edit', 'update']);

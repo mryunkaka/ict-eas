@@ -43,7 +43,7 @@
                 request()->routeIs('forms.incidents.*') => ['Insiden ICT', 'Catat kejadian, tindak lanjut, dan log maintenance.'],
                 request()->routeIs('forms.repairs.*') => ['Perbaikan ICT', 'Kelola ticket kerusakan dan progres penanganan.'],
                 request()->routeIs('forms.email-requests.*') => ['Permohonan Email', 'Permohonan internal yang diproses manual oleh role ICT terkait.'],
-                request()->routeIs('forms.ict-requests.*') => ['Permintaan ICT', 'Berkas dibuat admin ICT dan selesai setelah PDF TTD lengkap diunggah ulang.'],
+                request()->routeIs('forms.ict-requests.*') => ['Permintaan ICT', 'Permintaan diproses bertahap hingga penerimaan barang disimpan dan status menjadi Barang Sudah Diterima.'],
                 request()->routeIs('tools.users.*') => ['User Management', 'Administrasi akun, role, unit, dan status akses.'],
                 request()->routeIs('tools.ping.*') => ['Ping Server', 'Validasi host, port, dan latensi dari panel admin.'],
                 request()->routeIs('profile.*') => ['Profil Pengguna', 'Kelola informasi akun dan keamanan login.'],

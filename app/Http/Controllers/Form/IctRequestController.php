@@ -8,8 +8,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreIctRequestRequest;
 use App\Models\IctRequest;
 use App\Models\IctRequestItem;
+use App\Models\IctRequestPoDocument;
+use App\Models\IctRequestPpmDocument;
 use App\Models\IctRequestPpnkDocument;
 use App\Models\IctRequestQuotation;
+use App\Models\Asset;
+use App\Models\AssetHandover;
 use App\Support\UnitScope;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Database\Eloquent\Builder;
@@ -428,11 +432,10 @@ class IctRequestController extends Controller
         }
 
         // Update status ke progress_verifikasi_audit setelah PPNK disimpan
-        $ictRequest->update([
-            'status' => 'progress_verifikasi_audit',
-        ]);
+        $ictRequest->status = 'progress_verifikasi_audit';
+        $ictRequest->save();
 
-        return back()->with('status', 'Data PPNK/PPK berhasil disimpan. Menunggu verifikasi audit.');
+        return back()->with('status', 'Data PPNK/PPK berhasil disimpan. Status: Progress Verifikasi Audit.');
     }
 
     public function verifyAuditPpnk(Request $request, IctRequest $ictRequest): RedirectResponse
@@ -445,6 +448,7 @@ class IctRequestController extends Controller
             'items.*.item_id' => ['required', 'integer'],
             'items.*.audit_status' => ['required', 'in:takeout,approved'],
             'items.*.audit_reason' => ['nullable', 'string', 'max:1000'],
+            'items.*.takeout_qty' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $ictRequest->loadMissing(['items']);
@@ -452,6 +456,7 @@ class IctRequestController extends Controller
         $itemsById = $ictRequest->items->keyBy('id');
         $takeoutCount = 0;
         $approvedCount = 0;
+        $totalTakeoutQty = 0;
 
         foreach ($validated['items'] as $itemData) {
             $item = $itemsById->get($itemData['item_id']);
@@ -460,16 +465,43 @@ class IctRequestController extends Controller
                 continue;
             }
 
-            $item->update([
+            $updateData = [
                 'audit_status' => $itemData['audit_status'],
                 'audit_reason' => trim($itemData['audit_reason'] ?? ''),
-            ]);
+            ];
 
+            // Handle partial takeout logic
             if ($itemData['audit_status'] === 'takeout') {
-                $takeoutCount++;
+                $takeoutQty = (int) ($itemData['takeout_qty'] ?? $item->quantity);
+                
+                // Validate takeout_qty doesn't exceed item quantity
+                if ($takeoutQty > $item->quantity) {
+                    return back()
+                        ->withErrors(['items' => "Jumlah takeout untuk {$item->item_name} tidak boleh lebih dari jumlah barang ({$item->quantity})"])
+                        ->withInput();
+                }
+                
+                // If takeout_qty is provided and less than full quantity
+                if ($takeoutQty > 0 && $takeoutQty < $item->quantity) {
+                    // Partial takeout: reduce quantity, keep item active
+                    $newQty = $item->quantity - $takeoutQty;
+                    $updateData['quantity'] = $newQty;
+                    $updateData['takeout_qty'] = $takeoutQty;
+                    $totalTakeoutQty += $takeoutQty;
+                    // Item remains approved since there's still quantity left
+                    $updateData['audit_status'] = 'approved';
+                    $approvedCount++;
+                } else {
+                    // Full takeout: remove all quantity
+                    $updateData['takeout_qty'] = $takeoutQty ?: $item->quantity;
+                    $totalTakeoutQty += $updateData['takeout_qty'];
+                    $takeoutCount++;
+                }
             } else {
                 $approvedCount++;
             }
+
+            $item->update($updateData);
         }
 
         // Update status ke progress_ppm setelah semua item diverifikasi
@@ -478,8 +510,177 @@ class IctRequestController extends Controller
         ]);
 
         $message = "Verifikasi audit selesai. {$approvedCount} barang disetujui, {$takeoutCount} barang di-takeout.";
+        if ($totalTakeoutQty > 0) {
+            $message .= " Total qty di-takeout: {$totalTakeoutQty} unit.";
+        }
 
         return back()->with('status', $message);
+    }
+
+    public function storePpm(Request $request, IctRequest $ictRequest): RedirectResponse
+    {
+        abort_unless($this->canAccessRequest($request, $ictRequest), 403);
+        abort_unless($request->user()->isIctAdmin(), 403);
+        abort_unless($ictRequest->status === 'progress_ppm', 403);
+
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item_id' => ['required', 'integer'],
+            'items.*.line_number' => ['nullable', 'integer'],
+            'items.*.ppm_number' => ['required', 'string', 'max:255'],
+            'items.*.pr_number' => ['required', 'string', 'max:255'],
+            'items.*.ppm_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+
+        $ictRequest->loadMissing(['items', 'ppmDocuments']);
+
+        $rows = collect($validated['items'])
+            ->map(fn ($item) => [
+                'item_id' => (int) $item['item_id'],
+                'line_number' => (int) ($item['line_number'] ?? 0),
+                'ppm_number' => trim((string) $item['ppm_number']),
+                'pr_number' => trim((string) $item['pr_number']),
+                'ppm_attachment' => $item['ppm_attachment'] ?? null,
+            ]);
+
+        $itemsById = $ictRequest->items->keyBy('id');
+        $documentsByNumber = $ictRequest->ppmDocuments->keyBy('ppm_number');
+        $processedDocuments = [];
+
+        foreach ($rows as $row) {
+            abort_unless($itemsById->has($row['item_id']), 422);
+        }
+
+        foreach ($rows->groupBy('ppm_number') as $ppmNumber => $numberRows) {
+            $uploadedFile = collect($numberRows)->pluck('ppm_attachment')->first(fn ($file) => $file instanceof UploadedFile);
+            $document = $documentsByNumber->get($ppmNumber);
+
+            if (! $document && ! ($uploadedFile instanceof UploadedFile)) {
+                return back()
+                    ->withErrors(['items' => "File PPM untuk nomor {$ppmNumber} wajib diupload minimal sekali."])
+                    ->withInput();
+            }
+
+            if ($uploadedFile instanceof UploadedFile) {
+                if ($document && $document->attachment_path) {
+                    Storage::disk('public')->delete($document->attachment_path);
+                }
+
+                $stored = $this->storePpmAttachment($uploadedFile);
+
+                $document = IctRequestPpmDocument::updateOrCreate(
+                    [
+                        'ict_request_id' => $ictRequest->id,
+                        'ppm_number' => $ppmNumber,
+                    ],
+                    [
+                        'attachment_name' => $stored['name'],
+                        'attachment_path' => $stored['path'],
+                        'attachment_size' => $stored['size'],
+                        'attachment_mime' => $stored['mime'],
+                        'uploaded_by' => $request->user()->id,
+                        'uploaded_at' => now(),
+                    ]
+                );
+            }
+
+            $processedDocuments[$ppmNumber] = $document;
+        }
+
+        foreach ($rows as $row) {
+            $document = $processedDocuments[$row['ppm_number']] ?? $documentsByNumber->get($row['ppm_number']);
+            $itemsById[$row['item_id']]->update([
+                'ppm_document_id' => $document?->id,
+                'pr_number' => $row['pr_number'],
+                'line_number' => $row['line_number'],
+            ]);
+        }
+
+        // Update status ke progress_po setelah PPM disimpan
+        $ictRequest->status = 'progress_po';
+        $ictRequest->save();
+
+        return back()->with('status', 'Data PPM berhasil disimpan. Status: Progress PO.');
+    }
+
+    public function storePo(Request $request, IctRequest $ictRequest): RedirectResponse
+    {
+        abort_unless($this->canAccessRequest($request, $ictRequest), 403);
+        abort_unless($request->user()->isIctAdmin(), 403);
+        abort_unless($ictRequest->status === 'progress_po', 403);
+
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item_id' => ['required', 'integer'],
+            'items.*.po_number' => ['required', 'string', 'max:255'],
+            'items.*.po_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+
+        $ictRequest->loadMissing(['items', 'poDocuments']);
+
+        $rows = collect($validated['items'])
+            ->map(fn ($item) => [
+                'item_id' => (int) $item['item_id'],
+                'po_number' => trim((string) $item['po_number']),
+                'po_attachment' => $item['po_attachment'] ?? null,
+            ]);
+
+        $itemsById = $ictRequest->items->keyBy('id');
+        $documentsByNumber = $ictRequest->poDocuments->keyBy('po_number');
+        $processedDocuments = [];
+
+        foreach ($rows as $row) {
+            abort_unless($itemsById->has($row['item_id']), 422);
+        }
+
+        foreach ($rows->groupBy('po_number') as $poNumber => $numberRows) {
+            $uploadedFile = collect($numberRows)->pluck('po_attachment')->first(fn ($file) => $file instanceof UploadedFile);
+            $document = $documentsByNumber->get($poNumber);
+
+            if (! $document && ! ($uploadedFile instanceof UploadedFile)) {
+                return back()
+                    ->withErrors(['items' => "File PO untuk nomor {$poNumber} wajib diupload minimal sekali."])
+                    ->withInput();
+            }
+
+            if ($uploadedFile instanceof UploadedFile) {
+                if ($document && $document->attachment_path) {
+                    Storage::disk('public')->delete($document->attachment_path);
+                }
+
+                $stored = $this->storePoAttachment($uploadedFile);
+
+                $document = IctRequestPoDocument::updateOrCreate(
+                    [
+                        'ict_request_id' => $ictRequest->id,
+                        'po_number' => $poNumber,
+                    ],
+                    [
+                        'attachment_name' => $stored['name'],
+                        'attachment_path' => $stored['path'],
+                        'attachment_size' => $stored['size'],
+                        'attachment_mime' => $stored['mime'],
+                        'uploaded_by' => $request->user()->id,
+                        'uploaded_at' => now(),
+                    ]
+                );
+            }
+
+            $processedDocuments[$poNumber] = $document;
+        }
+
+        foreach ($rows as $row) {
+            $document = $processedDocuments[$row['po_number']] ?? $documentsByNumber->get($row['po_number']);
+            $itemsById[$row['item_id']]->update([
+                'po_document_id' => $document?->id,
+            ]);
+        }
+
+        // Update status ke progress_waiting_goods setelah PO disimpan
+        $ictRequest->status = 'progress_waiting_goods';
+        $ictRequest->save();
+
+        return back()->with('status', 'Data PO berhasil disimpan. Status: Progress Menunggu Barang Diterima.');
     }
 
     protected function buildSubject(string $category, string $itemName): string
@@ -1035,7 +1236,7 @@ class IctRequestController extends Controller
 
     protected function canModifyRequest(IctRequest $ictRequest): bool
     {
-        return ! in_array($ictRequest->status, ['checked_by_asmen', 'progress_ppnk', 'completed'], true);
+        return ! in_array($ictRequest->status, ['checked_by_asmen', 'progress_ppnk', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'completed'], true);
     }
 
     protected function storePpnkAttachment(UploadedFile $attachment): array
@@ -1061,6 +1262,70 @@ class IctRequestController extends Controller
         }
 
         $storedPath = $attachment->storeAs('ict-request-ppnk', $originalName, 'public');
+
+        return [
+            'name' => $originalName,
+            'path' => $storedPath,
+            'size' => $attachment->getSize(),
+            'mime' => $mime,
+        ];
+    }
+
+    protected function storePpmAttachment(UploadedFile $attachment): array
+    {
+        $originalName = $attachment->getClientOriginalName();
+        $mime = $attachment->getClientMimeType();
+
+        // Cek apakah file dengan nama yang sama sudah ada di database
+        $existingAttachment = IctRequestPpmDocument::query()
+            ->where('attachment_name', $originalName)
+            ->where('attachment_mime', $mime)
+            ->latest('id')
+            ->first(['attachment_name', 'attachment_path', 'attachment_size', 'attachment_mime']);
+
+        // Jika file sudah ada di storage dan masih referenced di database, gunakan file yang sama
+        if ($existingAttachment && $existingAttachment->attachment_path && Storage::disk('public')->exists($existingAttachment->attachment_path)) {
+            return [
+                'name' => (string) $existingAttachment->attachment_name,
+                'path' => (string) $existingAttachment->attachment_path,
+                'size' => $existingAttachment->attachment_size,
+                'mime' => (string) $existingAttachment->attachment_mime,
+            ];
+        }
+
+        $storedPath = $attachment->storeAs('ict-request-ppm', $originalName, 'public');
+
+        return [
+            'name' => $originalName,
+            'path' => $storedPath,
+            'size' => $attachment->getSize(),
+            'mime' => $mime,
+        ];
+    }
+
+    protected function storePoAttachment(UploadedFile $attachment): array
+    {
+        $originalName = $attachment->getClientOriginalName();
+        $mime = $attachment->getClientMimeType();
+
+        // Cek apakah file dengan nama yang sama sudah ada di database
+        $existingAttachment = IctRequestPoDocument::query()
+            ->where('attachment_name', $originalName)
+            ->where('attachment_mime', $mime)
+            ->latest('id')
+            ->first(['attachment_name', 'attachment_path', 'attachment_size', 'attachment_mime']);
+
+        // Jika file sudah ada di storage dan masih referenced di database, gunakan file yang sama
+        if ($existingAttachment && $existingAttachment->attachment_path && Storage::disk('public')->exists($existingAttachment->attachment_path)) {
+            return [
+                'name' => (string) $existingAttachment->attachment_name,
+                'path' => (string) $existingAttachment->attachment_path,
+                'size' => $existingAttachment->attachment_size,
+                'mime' => (string) $existingAttachment->attachment_mime,
+            ];
+        }
+
+        $storedPath = $attachment->storeAs('ict-request-po', $originalName, 'public');
 
         return [
             'name' => $originalName,
@@ -1110,5 +1375,174 @@ class IctRequestController extends Controller
         $ictRequest->quotations()->delete();
         $ictRequest->ppnkDocuments()->delete();
         $ictRequest->reviewHistories()->delete();
+    }
+
+    public function storeGoodsReceipt(Request $request, IctRequest $ictRequest): RedirectResponse
+    {
+        abort_unless($this->canAccessRequest($request, $ictRequest), 403);
+        abort_unless($request->user()->isIctAdmin(), 403);
+        abort_unless($ictRequest->status === 'progress_waiting_goods', 403);
+
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item_id' => ['required', 'integer'],
+            'items.*.handover_type' => ['required', 'in:asset,non_asset'],
+            
+            // Common fields
+            'items.*.description' => ['nullable', 'string', 'max:1000'],
+            'items.*.serah_terima' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'items.*.surat_jalan' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            
+            // Asset-specific fields
+            'items.*.dept' => ['nullable', 'string', 'max:255'],
+            'items.*.model_specification' => ['nullable', 'string', 'max:500'],
+            'items.*.serial_number' => ['nullable', 'string', 'max:255'],
+            'items.*.asset_number' => ['nullable', 'string', 'max:255'],
+            'items.*.recipient_name' => ['nullable', 'string', 'max:255'],
+            'items.*.recipient_position' => ['nullable', 'string', 'max:255'],
+            'items.*.supervisor_name' => ['nullable', 'string', 'max:255'],
+            'items.*.supervisor_position' => ['nullable', 'string', 'max:255'],
+            'items.*.witness_name' => ['nullable', 'string', 'max:255'],
+            'items.*.witness_position' => ['nullable', 'string', 'max:255'],
+            'items.*.deliverer_name' => ['nullable', 'string', 'max:255'],
+            'items.*.deliverer_position' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $ictRequest->loadMissing(['items', 'unit']);
+
+        foreach ($validated['items'] as $itemData) {
+            $ictRequestItem = $ictRequest->items->firstWhere('id', $itemData['item_id']);
+            abort_unless($ictRequestItem, 422);
+
+            $handoverData = [
+                'ict_request_id' => $ictRequest->id,
+                'ict_request_item_id' => $ictRequestItem->id,
+                'handover_type' => $itemData['handover_type'],
+                'created_by' => $request->user()->id,
+            ];
+
+            // Handle file uploads for non-asset or common documents
+            if (isset($itemData['serah_terima']) && $itemData['serah_terima'] instanceof UploadedFile) {
+                $stored = $this->storeHandoverAttachment($itemData['serah_terima'], 'serah_terima');
+                $handoverData['serah_terima_path'] = $stored['path'];
+                $handoverData['serah_terima_name'] = $stored['name'];
+                $handoverData['serah_terima_size'] = $stored['size'];
+                $handoverData['serah_terima_mime'] = $stored['mime'];
+            }
+
+            if (isset($itemData['surat_jalan']) && $itemData['surat_jalan'] instanceof UploadedFile) {
+                $stored = $this->storeHandoverAttachment($itemData['surat_jalan'], 'surat_jalan');
+                $handoverData['surat_jalan_path'] = $stored['path'];
+                $handoverData['surat_jalan_name'] = $stored['name'];
+                $handoverData['surat_jalan_size'] = $stored['size'];
+                $handoverData['surat_jalan_mime'] = $stored['mime'];
+            }
+
+            // Handle asset-specific data
+            if ($itemData['handover_type'] === 'asset') {
+                $handoverData = array_merge($handoverData, [
+                    'dept' => $itemData['dept'] ?? null,
+                    'model_specification' => $itemData['model_specification'] ?? null,
+                    'serial_number' => $itemData['serial_number'] ?? null,
+                    'asset_number' => $itemData['asset_number'] ?? null,
+                    'recipient_name' => $itemData['recipient_name'] ?? null,
+                    'recipient_position' => $itemData['recipient_position'] ?? null,
+                    'supervisor_name' => $itemData['supervisor_name'] ?? null,
+                    'supervisor_position' => $itemData['supervisor_position'] ?? null,
+                    'witness_name' => $itemData['witness_name'] ?? null,
+                    'witness_position' => $itemData['witness_position'] ?? null,
+                    'deliverer_name' => $itemData['deliverer_name'] ?? null,
+                    'deliverer_position' => $itemData['deliverer_position'] ?? null,
+                ]);
+
+                // Create asset record
+                $asset = Asset::create([
+                    'unit_id' => $ictRequest->unit_id,
+                    'assigned_user_id' => null,
+                    'uuid' => Str::uuid()->toString(),
+                    'asset_number' => $itemData['asset_number'] ?? null,
+                    'category' => $ictRequestItem->item_category ?? 'hardware',
+                    'name' => $ictRequestItem->item_name,
+                    'brand' => $ictRequestItem->brand_type,
+                    'model' => $itemData['model_specification'] ?? null,
+                    'serial_number' => $itemData['serial_number'] ?? null,
+                    'specification' => $itemData['model_specification'] ? ['description' => $itemData['model_specification']] : null,
+                    'location' => $itemData['dept'] ?? null,
+                    'purchase_date' => now(),
+                    'condition_status' => 'good',
+                    'lifecycle_status' => 'active',
+                ]);
+
+                $handoverData['asset_id'] = $asset->id;
+            } else {
+                // Non-asset: only description
+                $handoverData['description'] = $itemData['description'] ?? null;
+            }
+
+            $handover = AssetHandover::create($handoverData);
+
+            // Generate handover report (Berita Acara) for asset type
+            if ($itemData['handover_type'] === 'asset') {
+                $this->generateHandoverReport($handover, $ictRequest, $ictRequestItem);
+            }
+        }
+
+        // Update status to completed after all items processed
+        $ictRequest->status = 'completed';
+        $ictRequest->save();
+
+        return back()->with('status', 'Penerimaan barang berhasil disimpan. Status: Barang Sudah Diterima.');
+    }
+
+    protected function generateHandoverReport(AssetHandover $handover, IctRequest $ictRequest, IctRequestItem $item): void
+    {
+        $pdf = Pdf::loadView('forms.ict-requests.handover-report', [
+            'handover' => $handover,
+            'ictRequest' => $ictRequest,
+            'item' => $item,
+        ])->setPaper('a4', 'portrait');
+
+        $fileName = 'berita-acara-' . $handover->id . '-' . Str::slug(substr($item->item_name, 0, 30)) . '.pdf';
+        $filePath = 'ict-handover-reports/' . $fileName;
+
+        // Save to storage
+        Storage::disk('public')->put($filePath, $pdf->output());
+
+        // Update handover with report info
+        $handover->update([
+            'handover_report_path' => $filePath,
+            'handover_report_name' => $fileName,
+            'handover_report_generated_at' => now(),
+        ]);
+    }
+
+    protected function storeHandoverAttachment(UploadedFile $file, string $prefix): array
+    {
+        $extension = $file->getClientOriginalExtension() ?: $file->guessExtension();
+        $filename = $prefix . '-' . Str::uuid()->toString() . '.' . $extension;
+        $path = $file->storeAs('ict-handover-documents', $filename, 'public');
+
+        return [
+            'name' => $file->getClientOriginalName(),
+            'path' => $path,
+            'size' => $file->getSize(),
+            'mime' => $file->getMimeType(),
+        ];
+    }
+
+    public function handoverReportPdf(IctRequest $ictRequest, AssetHandover $assetHandover): BinaryFileResponse|Response
+    {
+        $request = request();
+        abort_unless($this->canAccessRequest($request, $ictRequest), 403);
+        abort_unless($assetHandover->ict_request_id === $ictRequest->id, 404);
+        abort_unless($assetHandover->handover_report_path, 404);
+
+        $path = Storage::disk('public')->path($assetHandover->handover_report_path);
+        
+        if (!file_exists($path)) {
+            abort(404, 'File tidak ditemukan');
+        }
+
+        return response()->download($path, $assetHandover->handover_report_name);
     }
 }

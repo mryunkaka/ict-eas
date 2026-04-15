@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\IctRequest;
 use App\Models\IctRequestItem;
+use App\Models\IctRequestPpmDocument;
 use App\Models\IctRequestPpnkDocument;
 use App\Models\IctRequestQuotation;
 use App\Models\IctRequestReviewHistory;
@@ -18,6 +19,7 @@ class CleanOrphanedPublicFiles extends Command
         'ict-request-revisions',
         'ict-request-signed',
         'ict-request-ppnk',
+        'ict-request-ppm',
         'ict-request-review-history',
     ];
 
@@ -73,6 +75,7 @@ class CleanOrphanedPublicFiles extends Command
             ->merge($this->pluckPaths(IctRequest::class, 'revision_attachment_path'))
             ->merge($this->pluckPaths(IctRequestItem::class, 'photo_path'))
             ->merge($this->pluckPaths(IctRequestPpnkDocument::class, 'attachment_path'))
+            ->merge($this->pluckPaths(IctRequestPpmDocument::class, 'attachment_path'))
             ->merge($this->pluckPaths(IctRequestQuotation::class, 'attachment_path'))
             ->merge($this->pluckPaths(IctRequestReviewHistory::class, 'attachment_path'))
             ->filter()

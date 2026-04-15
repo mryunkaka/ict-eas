@@ -104,6 +104,21 @@ class IctRequest extends Model
         return $this->hasMany(IctRequestPpnkDocument::class)->latest('uploaded_at')->latest('id');
     }
 
+    public function ppmDocuments(): HasMany
+    {
+        return $this->hasMany(IctRequestPpmDocument::class)->latest('uploaded_at')->latest('id');
+    }
+
+    public function poDocuments(): HasMany
+    {
+        return $this->hasMany(IctRequestPoDocument::class)->latest('uploaded_at')->latest('id');
+    }
+
+    public function assetHandovers(): HasMany
+    {
+        return $this->hasMany(AssetHandover::class);
+    }
+
     public function reviewHistories(): HasMany
     {
         return $this->hasMany(IctRequestReviewHistory::class)->latest('reviewed_at')->latest('id');
@@ -122,8 +137,10 @@ class IctRequest extends Model
             'progress_ppnk' => 'Progress PPNK',
             'progress_verifikasi_audit' => 'Progress Verifikasi Audit',
             'progress_ppm' => 'Progress PPM',
+            'progress_po' => 'Progress PO',
+            'progress_waiting_goods' => 'Progress Menunggu Barang Diterima',
             'approved_by_manager' => 'Approved Manager ICT',
-            'completed' => 'PDF TTD Lengkap',
+            'completed' => 'Barang Sudah Diterima',
             'needs_revision' => 'Perlu Revisi',
             'rejected' => 'Rejected',
             default => str($this->status)->replace('_', ' ')->title()->toString(),

@@ -16,15 +16,28 @@ class IctRequestItem extends Model
         'brand_type',
         'unit',
         'quantity',
+        'takeout_qty',
         'estimated_price',
         'notes',
         'photo_name',
         'photo_path',
         'photo_size',
         'ppnk_document_id',
+        'ppm_document_id',
+        'pr_number',
+        'po_document_id',
         'audit_status',
         'audit_reason',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'quantity' => 'integer',
+            'takeout_qty' => 'integer',
+            'estimated_price' => 'decimal:2',
+        ];
+    }
 
     public function ictRequest(): BelongsTo
     {
@@ -39,5 +52,15 @@ class IctRequestItem extends Model
     public function ppnkDocument(): BelongsTo
     {
         return $this->belongsTo(IctRequestPpnkDocument::class, 'ppnk_document_id');
+    }
+
+    public function ppmDocument(): BelongsTo
+    {
+        return $this->belongsTo(IctRequestPpmDocument::class, 'ppm_document_id');
+    }
+
+    public function poDocument(): BelongsTo
+    {
+        return $this->belongsTo(IctRequestPoDocument::class, 'po_document_id');
     }
 }
