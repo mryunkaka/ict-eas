@@ -93,7 +93,7 @@ class IctRequestController extends Controller
             'unit_id' => $user->unit_id,
             'requester_id' => $user->id,
             'form_number' => $formIdentifier,
-            'subject' => $formIdentifier,
+            'subject' => trim((string) $request->input('subject')) !== '' ? trim((string) $request->input('subject')) : $formIdentifier,
             'request_category' => (string) $request->input('request_category'),
             'priority' => (string) $request->input('priority'),
             'status' => 'drafted',
@@ -137,15 +137,15 @@ class IctRequestController extends Controller
             Storage::disk('public')->delete($ictRequest->revision_attachment_path);
         }
 
+        $subjectInput = trim((string) $request->input('subject'));
+        $fallbackIdentifier = $ictRequest->form_number ?: $this->buildFormIdentifier(
+            (string) ($ictRequest->unit?->code ?? 'UNIT'),
+            $this->resolveNextFormSequence((int) $ictRequest->unit_id)
+        );
+
         $ictRequest->update([
-            'subject' => $ictRequest->subject ?: $ictRequest->form_number ?: $this->buildFormIdentifier(
-                (string) ($ictRequest->unit?->code ?? 'UNIT'),
-                $this->resolveNextFormSequence((int) $ictRequest->unit_id)
-            ),
-            'form_number' => $ictRequest->form_number ?: $ictRequest->subject ?: $this->buildFormIdentifier(
-                (string) ($ictRequest->unit?->code ?? 'UNIT'),
-                $this->resolveNextFormSequence((int) $ictRequest->unit_id)
-            ),
+            'subject' => $subjectInput !== '' ? $subjectInput : ($ictRequest->subject ?: $fallbackIdentifier),
+            'form_number' => $ictRequest->form_number ?: $fallbackIdentifier,
             'request_category' => (string) $request->input('request_category'),
             'priority' => (string) $request->input('priority'),
             'quotation_mode' => $quotationMode,
@@ -1107,6 +1107,11 @@ class IctRequestController extends Controller
                 ]
             );
 
+        $unitCode = $user->unit?->code ?? 'UNIT';
+        $defaultSubject = $ictRequest
+            ? ($ictRequest->subject ?: $ictRequest->form_number)
+            : $this->buildFormIdentifier((string) $unitCode, $this->resolveNextFormSequence((int) $user->unit_id));
+
         return [
             'ptaProfile' => $latestPtaProfile,
             'approvalProfile' => $approvalProfile,
@@ -1121,6 +1126,9 @@ class IctRequestController extends Controller
             'initialPtaEnabled' => old('is_pta_request', ($ictRequest?->is_pta_request ?? $latestPtaProfile?->is_pta_request) ? '1' : '0') === '1',
             'initialItems' => old('items', $initialItems),
             'initialGlobalQuotations' => old('global_quotations', $initialGlobalQuotations),
+            'defaultSubject' => old('subject', $defaultSubject),
+            'requesterName' => $user->name ?? '-',
+            'departmentName' => $user->unit?->name ?? '-',
         ];
     }
 
