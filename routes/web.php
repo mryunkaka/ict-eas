@@ -20,7 +20,6 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Tools\PingServerController;
 use App\Http\Controllers\Tools\UserManagementController;
-use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
 
