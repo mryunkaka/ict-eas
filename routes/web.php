@@ -7,6 +7,7 @@ Route::get('/init-storage', function() {
     Artisan::call('storage:link');
     return 'Storage link created successfully!';
 });
+use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Form\AssetController;
 use App\Http\Controllers\Form\AssetHandoverController;
