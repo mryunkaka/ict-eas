@@ -203,7 +203,7 @@
         .detail-table td {
             font-size: 6.6px;
             line-height: 1.2;
-            padding: 4px 4px;
+            padding: 3px 4px;
             word-break: break-word;
         }
 
@@ -403,8 +403,14 @@
 </head>
 <body class="{{ $isCopy ? 'copy-mode' : '' }}">
     @php
-        $minimumRows = 8;
-        $emptyRows = max($minimumRows - $items->count(), 0);
+        $itemCount = $items->count();
+        $minimumRows = 5;
+        $emptyRows = max($minimumRows - $itemCount, 0);
+        // Kecilkan font jika barang banyak agar muat 1 halaman
+        $tableSmall = $itemCount > 6;
+        $tableFontSize = $tableSmall ? '5.6px' : '6.6px';
+        $tableThFontSize = $tableSmall ? '5.8px' : '6.9px';
+        $tableRowHeight = $tableSmall ? '16px' : '19px';
     @endphp
 
     <div class="page">
@@ -487,16 +493,16 @@
 
             <div class="section-title">Detail Fasilitas ICT</div>
 
-            <table class="detail-table">
+            <table class="detail-table" style="font-size: {{ $tableFontSize }};">
                 <thead>
                     <tr>
-                        <th style="width: 4%;">No.</th>
-                        <th style="width: 34%;">Nama Barang</th>
-                        <th style="width: 10%;">Merk/Tipe</th>
-                        <th style="width: 6%;">Jumlah</th>
-                        <th style="width: 10%;">Harga</th>
-                        <th style="width: 11%;">Total</th>
-                        <th style="width: 25%;">Keterangan</th>
+                        <th style="width: 4%; font-size: {{ $tableThFontSize }};">No.</th>
+                        <th style="width: 34%; font-size: {{ $tableThFontSize }};">Nama Barang</th>
+                        <th style="width: 10%; font-size: {{ $tableThFontSize }};">Merk/Tipe</th>
+                        <th style="width: 6%; font-size: {{ $tableThFontSize }};">Jumlah</th>
+                        <th style="width: 10%; font-size: {{ $tableThFontSize }};">Harga</th>
+                        <th style="width: 11%; font-size: {{ $tableThFontSize }};">Total</th>
+                        <th style="width: 25%; font-size: {{ $tableThFontSize }};">Keterangan</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -507,7 +513,7 @@
                             $itemNameClass = $itemNameLength > 80 ? 'text-xs' : ($itemNameLength > 45 ? 'text-sm' : '');
                             $itemNotesClass = $itemNotesLength > 170 ? 'text-xs' : ($itemNotesLength > 95 ? 'text-sm' : '');
                         @endphp
-                        <tr class="row-fixed">
+                        <tr style="height: {{ $tableRowHeight }};">
                             <td class="center">{{ $item['number'] }}</td>
                             <td class="item-name {{ $itemNameClass }}">{{ $item['item_name'] }}</td>
                             <td class="center">{{ $item['brand_type'] }}</td>
@@ -518,7 +524,7 @@
                         </tr>
                     @endforeach
                     @for ($row = 0; $row < $emptyRows; $row++)
-                        <tr class="row-fixed">
+                        <tr style="height: {{ $tableRowHeight }};">
                             <td>&nbsp;</td>
                             <td></td>
                             <td></td>
@@ -538,10 +544,18 @@
             </table>
 
             <div class="reason-title">Alasan Kebutuhan :</div>
+            @php
+                $justificationText = $ictRequest->justification ?? '';
+                $justificationLen = mb_strlen($justificationText);
+                // Sesuaikan font-size alasan agar tidak terlalu panjang
+                $justFontSize = $justificationLen > 400 ? '5.8px' : ($justificationLen > 200 ? '6.4px' : '7px');
+                // Jumlah baris kosong setelah teks: kurangi jika teks panjang
+                $extraLines = $justificationLen > 300 ? 1 : ($justificationLen > 150 ? 2 : 4);
+            @endphp
             <div class="line-block">
-                @if (filled($ictRequest->justification))
-                    <div class="dot-line text">{{ $ictRequest->justification }}</div>
-                    @for ($line = 0; $line < 4; $line++)
+                @if (filled($justificationText))
+                    <div class="dot-line text" style="font-size: {{ $justFontSize }};">{{ $justificationText }}</div>
+                    @for ($line = 0; $line < $extraLines; $line++)
                         <div class="dot-line"></div>
                     @endfor
                 @else
