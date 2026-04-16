@@ -26,6 +26,8 @@ class IctRequest extends Model
     protected $fillable = [
         'unit_id',
         'requester_id',
+        'requester_name',
+        'department_name',
         'form_number',
         'revision_number',
         'print_count',
@@ -147,5 +149,15 @@ class IctRequest extends Model
 
         return self::STATUS_LABELS[$this->status]
             ?? str($this->status)->replace('_', ' ')->title()->toString();
+    }
+
+    public function requesterDisplayName(): string
+    {
+        return (string) ($this->requester_name ?: $this->requester?->name ?: '-');
+    }
+
+    public function departmentDisplayName(): string
+    {
+        return (string) ($this->department_name ?: $this->unit?->name ?: '-');
     }
 }

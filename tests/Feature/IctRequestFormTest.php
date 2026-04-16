@@ -37,15 +37,18 @@ class IctRequestFormTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('value="hardware"', false);
+        $response->assertSee('value="Admin ICT Unit"', false);
         $response->assertSee('value="Staff ICT Unit"', false);
         $response->assertSee('value="Staff ICT"', false);
-        $response->assertDontSee('value="Admin ICT Unit"', false);
         $response->assertSee('Permohonan Pembuatan PTA');
         $response->assertSee('Penawaran Vendor');
         $response->assertSee('Global 1 Form');
         $response->assertSee('Tambah Barang');
+        $response->assertSee('name="requester_name"', false);
+        $response->assertSee('name="department_name"', false);
+        $response->assertSee('name="needed_at"', false);
+        $response->assertSee('value="'.now()->toDateString().'"', false);
         $response->assertDontSee('Subjek Permintaan');
-        $response->assertDontSee('Dibutuhkan Tanggal');
     }
 
     public function test_legacy_unit_user_role_can_access_ict_request_pages(): void
@@ -215,6 +218,9 @@ class IctRequestFormTest extends TestCase
         $user = User::factory()->create(['unit_id' => $unit->id, 'role' => UserRole::AdminIct]);
 
         $response = $this->actingAs($user)->post(route('forms.ict-requests.store'), [
+            'requester_name' => 'Pemohon Manual',
+            'department_name' => 'Departemen Manual',
+            'needed_at' => '2026-04-16',
             'request_category' => 'hardware',
             'priority' => 'normal',
             'quotation_mode' => 'global',
@@ -267,6 +273,9 @@ class IctRequestFormTest extends TestCase
 
         $this->assertSame('UNIT-01-FORM ICT-001', $request->subject);
         $this->assertSame('UNIT-01-FORM ICT-001', $request->form_number);
+        $this->assertSame('Pemohon Manual', $request->requester_name);
+        $this->assertSame('Departemen Manual', $request->department_name);
+        $this->assertSame('2026-04-16', optional($request->needed_at)->toDateString());
         $this->assertSame('global', $request->quotation_mode);
         $this->assertSame('Laptop/Notebook', $request->items[0]->item_category);
         $this->assertSame('unit', $request->items[0]->unit);
@@ -290,6 +299,9 @@ class IctRequestFormTest extends TestCase
         $user = User::factory()->create(['unit_id' => $unit->id, 'role' => UserRole::AdminIct]);
 
         $response = $this->actingAs($user)->post(route('forms.ict-requests.store'), [
+            'requester_name' => $user->name,
+            'department_name' => $unit->name,
+            'needed_at' => '2026-04-16',
             'request_category' => 'hardware',
             'priority' => 'urgent',
             'quotation_mode' => 'per_item',
@@ -339,6 +351,9 @@ class IctRequestFormTest extends TestCase
         $user = User::factory()->create(['unit_id' => $unit->id, 'role' => UserRole::AdminIct]);
 
         $firstResponse = $this->actingAs($user)->post(route('forms.ict-requests.store'), [
+            'requester_name' => $user->name,
+            'department_name' => $unit->name,
+            'needed_at' => '2026-04-16',
             'request_category' => 'hardware',
             'priority' => 'normal',
             'quotation_mode' => 'global',
@@ -367,6 +382,9 @@ class IctRequestFormTest extends TestCase
         $firstPath = $firstRequest->quotations->firstOrFail()->attachment_path;
 
         $secondResponse = $this->actingAs($user)->post(route('forms.ict-requests.store'), [
+            'requester_name' => $user->name,
+            'department_name' => $unit->name,
+            'needed_at' => '2026-04-17',
             'request_category' => 'hardware',
             'priority' => 'normal',
             'quotation_mode' => 'global',
@@ -429,6 +447,9 @@ class IctRequestFormTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)->put(route('forms.ict-requests.update', $request), [
+            'requester_name' => 'Pemohon Revisi',
+            'department_name' => 'Dept Revisi',
+            'needed_at' => '2026-04-18',
             'request_category' => 'hardware',
             'priority' => 'urgent',
             'quotation_mode' => 'global',
@@ -464,6 +485,9 @@ class IctRequestFormTest extends TestCase
         $request->load('items');
 
         $this->assertSame(1, $request->revision_number);
+        $this->assertSame('Pemohon Revisi', $request->requester_name);
+        $this->assertSame('Dept Revisi', $request->department_name);
+        $this->assertSame('2026-04-18', optional($request->needed_at)->toDateString());
         $this->assertSame('urgent', $request->priority);
         $this->assertSame('Hardware - Laptop', $request->subject);
         $this->assertSame('Kebutuhan revisi', $request->justification);
@@ -506,6 +530,9 @@ class IctRequestFormTest extends TestCase
         $second->delete();
 
         $response = $this->actingAs($user)->post(route('forms.ict-requests.store'), [
+            'requester_name' => $user->name,
+            'department_name' => $unit->name,
+            'needed_at' => '2026-04-16',
             'request_category' => 'hardware',
             'priority' => 'normal',
             'quotation_mode' => 'global',
@@ -579,6 +606,9 @@ class IctRequestFormTest extends TestCase
         Storage::disk('public')->assertExists($history->attachment_path);
 
         $this->actingAs($admin)->put(route('forms.ict-requests.update', $request), [
+            'requester_name' => 'Admin ICT Revisi',
+            'department_name' => 'Unit 01 Revisi',
+            'needed_at' => '2026-04-19',
             'request_category' => 'hardware',
             'priority' => 'normal',
             'quotation_mode' => 'global',

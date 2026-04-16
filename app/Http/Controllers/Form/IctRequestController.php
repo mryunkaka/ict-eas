@@ -17,12 +17,11 @@ use App\Models\AssetHandover;
 use App\Support\PublicFileUpload;
 use App\Support\UnitScope;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage as StorageFacade;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -64,7 +63,9 @@ class IctRequestController extends Controller
 
     public function create(): View
     {
-        abort_unless(auth()->user()->canCreateIctRequest(), 403);
+        /** @var \App\Models\User $user */
+        $user = request()->user();
+        abort_unless($user->canCreateIctRequest(), 403);
         return view('forms.ict-requests.create', $this->buildFormViewData());
     }
 
@@ -92,12 +93,14 @@ class IctRequestController extends Controller
         $ictRequest = IctRequest::create([
             'unit_id' => $user->unit_id,
             'requester_id' => $user->id,
+            'requester_name' => $request->input('requester_name'),
+            'department_name' => $request->input('department_name'),
             'form_number' => $formIdentifier,
             'subject' => trim((string) $request->input('subject')) !== '' ? trim((string) $request->input('subject')) : $formIdentifier,
             'request_category' => (string) $request->input('request_category'),
             'priority' => (string) $request->input('priority'),
             'status' => 'drafted',
-            'needed_at' => now()->toDateString(),
+            'needed_at' => $request->input('needed_at'),
             'quotation_mode' => $quotationMode,
             'is_pta_request' => $request->boolean('is_pta_request'),
             'justification' => (string) $request->input('justification'),
@@ -144,10 +147,13 @@ class IctRequestController extends Controller
         );
 
         $ictRequest->update([
+            'requester_name' => $request->input('requester_name'),
+            'department_name' => $request->input('department_name'),
             'subject' => $subjectInput !== '' ? $subjectInput : ($ictRequest->subject ?: $fallbackIdentifier),
             'form_number' => $ictRequest->form_number ?: $fallbackIdentifier,
             'request_category' => (string) $request->input('request_category'),
             'priority' => (string) $request->input('priority'),
+            'needed_at' => $request->input('needed_at'),
             'quotation_mode' => $quotationMode,
             'is_pta_request' => $request->boolean('is_pta_request'),
             'justification' => (string) $request->input('justification'),
@@ -207,7 +213,7 @@ class IctRequestController extends Controller
                 $total = ((float) ($item->estimated_price ?? 0)) * ((int) ($item->quantity ?? 0));
                 $excelRowNumber = count($rows) + 2;
                 $photoText = $item->photo_name ?: '-';
-                $photoUrl = $item->photo_path ? Storage::disk('public')->url($item->photo_path) : '';
+                $photoUrl = $item->photo_path ? Storage::url($item->photo_path) : '';
 
                 $vendorTexts = [];
                 $vendorUrls = [];
@@ -215,7 +221,7 @@ class IctRequestController extends Controller
                 foreach (range(0, 2) as $vendorIndex) {
                     $quotation = $itemQuotations->get($vendorIndex);
                     $vendorTexts[] = $quotation?->vendor_name ?: '-';
-                    $vendorUrls[] = $quotation?->attachment_path ? Storage::disk('public')->url($quotation->attachment_path) : '';
+                    $vendorUrls[] = $quotation?->attachment_path ? Storage::url($quotation->attachment_path) : '';
                 }
 
                 $rows[] = [
@@ -285,12 +291,12 @@ class IctRequestController extends Controller
             'items' => $items,
             'totalEstimatedPrice' => $items->sum('total_price'),
             'logoDataUri' => $this->fileToDataUri(public_path('images/eas-new.png'), $isCopy),
-            'requestDate' => optional($ictRequest->created_at)->format('d F Y'),
+            'requestDate' => optional($ictRequest->needed_at)->format('d F Y'),
             'revisionLabel' => 'REV-'.(int) $ictRequest->revision_number,
             'isCopy' => $isCopy,
             'companyLabel' => str((string) ($ictRequest->unit?->code ?? 'EAS'))->before('-')->upper()->toString(),
-            'departmentLabel' => $ictRequest->unit?->name ?? '-',
-            'requesterLabel' => $ictRequest->requester?->name ?? '-',
+            'departmentLabel' => $ictRequest->departmentDisplayName(),
+            'requesterLabel' => $ictRequest->requesterDisplayName(),
             'signatureBlocks' => [
                 ['label' => 'Dibuat oleh', 'name' => $ictRequest->drafted_by_name, 'title' => $ictRequest->drafted_by_title],
                 ['label' => 'Diketahui oleh', 'name' => $ictRequest->acknowledged_by_name, 'title' => $ictRequest->acknowledged_by_title],
@@ -935,7 +941,8 @@ class IctRequestController extends Controller
 
     protected function buildFormViewData(?IctRequest $ictRequest = null): array
     {
-        $user = auth()->user();
+        /** @var \App\Models\User $user */
+        $user = request()->user();
         $defaultStaffIct = $user->unit_id
             ? \App\Models\User::query()
                 ->where('unit_id', $user->unit_id)
@@ -946,7 +953,7 @@ class IctRequestController extends Controller
             : null;
 
         $latestPtaProfile = IctRequest::query()
-            ->where('requester_id', auth()->id())
+            ->where('requester_id', $user->id)
             ->where(function ($query) {
                 $query->where('is_pta_request', true)
                     ->orWhereNotNull('drafted_by_name')
@@ -1127,8 +1134,9 @@ class IctRequestController extends Controller
             'initialItems' => old('items', $initialItems),
             'initialGlobalQuotations' => old('global_quotations', $initialGlobalQuotations),
             'defaultSubject' => old('subject', $defaultSubject),
-            'requesterName' => $user->name ?? '-',
-            'departmentName' => $user->unit?->name ?? '-',
+            'requesterName' => old('requester_name', $ictRequest?->requester_name ?? $user->name ?? '-'),
+            'departmentName' => old('department_name', $ictRequest?->department_name ?? $user->unit?->name ?? '-'),
+            'neededAt' => old('needed_at', optional($ictRequest?->needed_at)->toDateString() ?? now()->toDateString()),
         ];
     }
 
@@ -1204,7 +1212,7 @@ class IctRequestController extends Controller
 
     protected function storagePathToDataUri(string $path, bool $grayscale = false): ?string
     {
-        return $this->fileToDataUri(StorageFacade::disk('public')->path($path), $grayscale);
+        return $this->fileToDataUri(Storage::disk('public')->path($path), $grayscale);
     }
 
     protected function fileToDataUri(?string $path, bool $grayscale = false): ?string

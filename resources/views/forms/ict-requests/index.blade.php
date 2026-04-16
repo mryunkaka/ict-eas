@@ -33,9 +33,9 @@
             'subject' => $request->subject,
             'revision_number' => (int) $request->revision_number,
             'print_count' => (int) $request->print_count,
-            'unit' => $request->unit?->name,
+            'unit' => $request->departmentDisplayName(),
             'unit_id' => $request->unit_id,
-            'requester' => $request->requester?->name,
+            'requester' => $request->requesterDisplayName(),
             'generated_pdf_url' => route('forms.ict-requests.pdf', $request),
             'copy_pdf_url' => route('forms.ict-requests.pdf', ['ictRequest' => $request, 'copy' => 1]),
             'print_url' => route('forms.ict-requests.print', $request),
@@ -659,8 +659,8 @@
                                     </a>
                                 @endif
                             </td>
-                            <td class="px-4 py-3">{{ $request->requester?->name }}</td>
-                            <td class="px-4 py-3">{{ $request->unit?->name }}</td>
+                            <td class="px-4 py-3">{{ $request->requesterDisplayName() }}</td>
+                            <td class="px-4 py-3">{{ $request->departmentDisplayName() }}</td>
                             <td class="px-4 py-3"><x-badge variant="{{ $request->priority === 'urgent' ? 'warning' : 'default' }}">{{ strtoupper($request->priority) }}</x-badge></td>
                             <td class="px-4 py-3">{{ \Illuminate\Support\Str::limit($request->justification, 140) }}</td>
                             <td class="px-4 py-3"><x-badge variant="{{ in_array($request->status, ['progress_ppnk'], true) || ($request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path) ? 'warning' : 'success' }}">{{ $request->statusLabel() }}</x-badge></td>

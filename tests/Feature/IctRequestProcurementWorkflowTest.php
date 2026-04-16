@@ -35,6 +35,9 @@ class IctRequestProcurementWorkflowTest extends TestCase
 
         $this->actingAs($requester)
             ->post(route('forms.ict-requests.store'), [
+                'requester_name' => 'Pemohon Procurement',
+                'department_name' => 'Unit 01',
+                'needed_at' => '2026-04-16',
                 'request_category' => 'hardware',
                 'priority' => 'normal',
                 'quotation_mode' => 'global',
@@ -180,4 +183,3 @@ class IctRequestProcurementWorkflowTest extends TestCase
         Storage::disk('public')->assertExists($handover->handover_report_path);
     }
 }
-

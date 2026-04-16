@@ -60,26 +60,17 @@
                     </div>
                 @endif
 
-                {{-- Info Pengguna & Dept (read-only) + Subject (editable) --}}
+                {{-- Info Pengguna, Dept, Tanggal, dan Subject --}}
                 <div class="rounded-3xl border border-ink-100 bg-ink-50/50 p-4">
                     <div class="mb-3">
                         <h3 class="font-display text-sm font-semibold text-ink-700">Informasi Pemohon</h3>
-                        <p class="text-xs text-ink-500 mt-0.5">Data pengguna dan departemen otomatis terisi. Subjek dapat disesuaikan.</p>
+                        <p class="text-xs text-ink-500 mt-0.5">Nama pengguna, departemen, tanggal, dan subjek dapat disesuaikan manual.</p>
                     </div>
-                    <div class="grid gap-4 md:grid-cols-3">
-                        <div class="space-y-1.5">
-                            <label class="text-sm font-medium text-ink-700">Pengguna</label>
-                            <div class="w-full rounded-2xl border border-ink-200 bg-ink-100/70 px-4 py-3 text-sm text-ink-600 select-none">
-                                {{ $requesterName }}
-                            </div>
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="text-sm font-medium text-ink-700">Departemen</label>
-                            <div class="w-full rounded-2xl border border-ink-200 bg-ink-100/70 px-4 py-3 text-sm text-ink-600 select-none">
-                                {{ $departmentName }}
-                            </div>
-                        </div>
-                        <div class="space-y-1.5">
+                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <x-input name="requester_name" label="Pengguna" :value="$requesterName" />
+                        <x-input name="department_name" label="Departemen" :value="$departmentName" />
+                        <x-input name="needed_at" type="date" label="Tanggal" :value="$neededAt" />
+                        <div class="space-y-1.5 md:col-span-2 xl:col-span-1">
                             <label for="subject" class="text-sm font-medium text-ink-700">
                                 Subjek Form
                                 <span class="ml-1 text-xs font-normal text-ink-400">(auto-generate, bisa diedit)</span>

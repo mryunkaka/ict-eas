@@ -18,6 +18,9 @@ class StoreIctRequestRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'requester_name' => ['required', 'string', 'max:255'],
+            'department_name' => ['required', 'string', 'max:255'],
+            'needed_at' => ['required', 'date'],
             'request_category' => ['required', 'in:hardware,software,accessories'],
             'priority' => ['required', 'in:urgent,normal'],
             'quotation_mode' => ['required', 'in:global,per_item'],
