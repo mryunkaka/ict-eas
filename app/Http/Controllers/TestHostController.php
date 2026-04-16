@@ -24,23 +24,21 @@ class TestHostController extends Controller
             try {
                 $user = User::where('email', $request->email)->first();
                 $db_raw_user = DB::table('users')->where('email', $request->email)->first();
+                
                 if (!$user) {
                     Log::error('User email not found in DB!');
                     return back()->with('error', 'User tidak ditemukan di DB.');
                 }
 
-                // using DB RAW user password to bypass eloquent casting
                 $raw_password = $db_raw_user->password ?? 'NULL_IN_DB';
-
                 $hash_valid = Hash::check($request->password, $raw_password);
-                $is_password = ($request->password === 'password');
                 
-                $dump = "Email provided: '{$request->email}'. "
-                      . "Password provided: '{$request->password}'. "
-                      . "Hash in DB (Eloquent): '" . ($user->password ?? '') . "'. "
-                      . "Hash in DB (RAW RAW DB): '" . $raw_password . "'. "
-                      . "Round configured: " . config('hashing.bcrypt.rounds') . ". "
-                      . "Hash Length (Raw): " . strlen($raw_password) . ". ";
+                // Dump ALL columns as JSON to see exactly what columns exist
+                $all_columns = json_encode($db_raw_user);
+
+                $dump = "Email: {$request->email}. "
+                      . "Valid: " . ($hash_valid ? 'yes' : 'no') . ". "
+                      . "Row Data: " . $all_columns;
 
                 if ($hash_valid) {
                     Auth::login($user);
