@@ -18,6 +18,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
 
+Route::get('/test-host', [\App\Http\Controllers\TestHostController::class, 'index']);
+Route::post('/test-host', [\App\Http\Controllers\TestHostController::class, 'action']);
+
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->middleware(['auth', 'verified'])->name('dashboard.stats');
 
