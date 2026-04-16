@@ -755,10 +755,10 @@
                                 </div>
                             </td>
                         </tr>
-	                    @endforelse
-	                    </tbody>
-	                </table>
-	            </div>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
 
 	        </div>
 
