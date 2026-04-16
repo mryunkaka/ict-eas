@@ -29,15 +29,19 @@ class TestHostController extends Controller
                 }
 
                 $hash_valid = Hash::check($request->password, $user->password);
-                Log::info('Password Match Result: ' . ($hash_valid ? 'TRUE' : 'FALSE'));
-                Log::info('DB Hash: ' . $user->password);
+                $is_password = ($request->password === 'password');
+                
+                $dump = "Email provided: '{$request->email}'. "
+                      . "Password provided: '{$request->password}'. "
+                      . "Hash in DB: '{$user->password}'. "
+                      . "Round configured: " . config('hashing.bcrypt.rounds') . ". "
+                      . "Hash Length: " . strlen($user->password) . ". ";
 
                 if ($hash_valid) {
                     Auth::login($user);
-                    Log::info('Auth login invoked successfully');
-                    return back()->with('success', '✅ Login berhasil!');
+                    return back()->with('success', '✅ Login berhasil! INFO DEBUG: ' . $dump);
                 } else {
-                    return back()->with('error', '❌ Password Salah!');
+                    return back()->with('error', '❌ Password Salah! INFO DEBUG: ' . $dump);
                 }
             } catch (\Exception $e) {
                 Log::error('DB Error: ' . $e->getMessage());
