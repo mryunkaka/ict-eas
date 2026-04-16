@@ -9,6 +9,7 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -59,6 +60,54 @@ class IctRequestFormTest extends TestCase
         $this->actingAs($user)
             ->get(route('forms.ict-requests.create'))
             ->assertOk();
+    }
+
+    public function test_ict_request_index_defaults_to_active_semester_range(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-04-16 10:00:00', 'Asia/Makassar'));
+
+        $unit = Unit::create(['code' => 'JAR1', 'name' => 'JAR 1', 'type' => 'unit', 'is_active' => true]);
+        $user = User::factory()->create(['unit_id' => $unit->id, 'role' => UserRole::AdminIct]);
+
+        IctRequest::create([
+            'unit_id' => $unit->id,
+            'requester_id' => $user->id,
+            'form_number' => 'JAR1-FORM ICT-001',
+            'subject' => 'JAR1-FORM ICT-001',
+            'request_category' => 'hardware',
+            'priority' => 'normal',
+            'status' => 'drafted',
+            'needed_at' => '2026-03-10',
+            'quotation_mode' => 'global',
+            'justification' => 'Semester satu',
+            'created_at' => '2026-03-10 08:00:00',
+            'updated_at' => '2026-03-10 08:00:00',
+        ]);
+
+        IctRequest::create([
+            'unit_id' => $unit->id,
+            'requester_id' => $user->id,
+            'form_number' => 'JAR1-FORM ICT-002',
+            'subject' => 'JAR1-FORM ICT-002',
+            'request_category' => 'hardware',
+            'priority' => 'normal',
+            'status' => 'drafted',
+            'needed_at' => '2026-07-10',
+            'quotation_mode' => 'global',
+            'justification' => 'Semester dua',
+            'created_at' => '2026-07-10 08:00:00',
+            'updated_at' => '2026-07-10 08:00:00',
+        ]);
+
+        $response = $this->actingAs($user)->get(route('forms.ict-requests.index'));
+
+        $response->assertOk();
+        $response->assertSee('JAR1-FORM ICT-001');
+        $response->assertSee('Filter tanggal aktif');
+        $response->assertSee('name="from" value="2026-01-01"', false);
+        $response->assertSee('name="until" value="2026-06-30"', false);
+
+        Carbon::setTestNow();
     }
 
     public function test_latest_pta_profile_is_prefilled_for_the_requester(): void
@@ -216,7 +265,8 @@ class IctRequestFormTest extends TestCase
 
         $request = IctRequest::query()->with(['items', 'quotations'])->firstOrFail();
 
-        $this->assertSame('Hardware - Laptop', $request->subject);
+        $this->assertSame('UNIT-01-FORM ICT-001', $request->subject);
+        $this->assertSame('UNIT-01-FORM ICT-001', $request->form_number);
         $this->assertSame('global', $request->quotation_mode);
         $this->assertSame('Laptop/Notebook', $request->items[0]->item_category);
         $this->assertSame('unit', $request->items[0]->unit);
@@ -415,11 +465,73 @@ class IctRequestFormTest extends TestCase
 
         $this->assertSame(1, $request->revision_number);
         $this->assertSame('urgent', $request->priority);
-        $this->assertSame('Hardware - Laptop Revisi', $request->subject);
+        $this->assertSame('Hardware - Laptop', $request->subject);
         $this->assertSame('Kebutuhan revisi', $request->justification);
         $this->assertSame('Div Head Baru', $request->acknowledged_by_name);
         $this->assertCount(1, $request->items);
         $this->assertSame('Laptop Revisi', $request->items[0]->item_name);
+    }
+
+    public function test_ict_request_subject_and_form_number_fill_smallest_missing_sequence_per_unit(): void
+    {
+        $unit = Unit::create(['code' => 'JAR1', 'name' => 'JAR 1', 'type' => 'unit', 'is_active' => true]);
+        $user = User::factory()->create(['unit_id' => $unit->id, 'role' => UserRole::AdminIct]);
+
+        $first = IctRequest::create([
+            'unit_id' => $unit->id,
+            'requester_id' => $user->id,
+            'form_number' => 'JAR1-FORM ICT-001',
+            'subject' => 'JAR1-FORM ICT-001',
+            'request_category' => 'hardware',
+            'priority' => 'normal',
+            'status' => 'drafted',
+            'needed_at' => now()->toDateString(),
+            'quotation_mode' => 'global',
+            'justification' => 'Pertama',
+        ]);
+
+        $second = IctRequest::create([
+            'unit_id' => $unit->id,
+            'requester_id' => $user->id,
+            'form_number' => 'JAR1-FORM ICT-002',
+            'subject' => 'JAR1-FORM ICT-002',
+            'request_category' => 'hardware',
+            'priority' => 'normal',
+            'status' => 'drafted',
+            'needed_at' => now()->toDateString(),
+            'quotation_mode' => 'global',
+            'justification' => 'Kedua',
+        ]);
+
+        $second->delete();
+
+        $response = $this->actingAs($user)->post(route('forms.ict-requests.store'), [
+            'request_category' => 'hardware',
+            'priority' => 'normal',
+            'quotation_mode' => 'global',
+            'justification' => 'Isi celah nomor',
+            'global_quotations' => [
+                ['vendor_name' => 'Vendor A'],
+                ['vendor_name' => 'Vendor B'],
+                ['vendor_name' => 'Vendor C'],
+            ],
+            'items' => [
+                [
+                    'item_category' => 'Laptop/Notebook',
+                    'item_name' => 'Laptop Baru',
+                    'quantity' => 1,
+                    'unit' => 'unit',
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.ict-requests.index'));
+
+        $latestRequest = IctRequest::query()->latest('id')->firstOrFail();
+
+        $this->assertNotSame($first->id, $latestRequest->id);
+        $this->assertSame('JAR1-FORM ICT-002', $latestRequest->subject);
+        $this->assertSame('JAR1-FORM ICT-002', $latestRequest->form_number);
     }
 
     public function test_revision_history_attachment_remains_available_after_request_is_updated(): void

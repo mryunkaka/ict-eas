@@ -20,8 +20,11 @@
                             Approval
                         </x-nav-link>
                     @endif
-                    <x-nav-link :href="route('reports.index')" :active="request()->routeIs('reports.*')">
+                    <x-nav-link :href="route('reports.index')" :active="request()->routeIs('reports.index', 'reports.export.*')">
                         Report
+                    </x-nav-link>
+                    <x-nav-link :href="route('reports.monitoring-pp')" :active="request()->routeIs('reports.monitoring-pp')">
+                        Monitoring PP
                     </x-nav-link>
                     @if (Auth::user()->canManageUsers())
                         <x-nav-link :href="route('tools.users.index')" :active="request()->routeIs('tools.users.*')">
@@ -91,8 +94,11 @@
                     Approval
                 </x-responsive-nav-link>
             @endif
-            <x-responsive-nav-link :href="route('reports.index')" :active="request()->routeIs('reports.*')">
+            <x-responsive-nav-link :href="route('reports.index')" :active="request()->routeIs('reports.index', 'reports.export.*')">
                 Report
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('reports.monitoring-pp')" :active="request()->routeIs('reports.monitoring-pp')">
+                Monitoring PP
             </x-responsive-nav-link>
             @if (Auth::user()->canManageUsers())
                 <x-responsive-nav-link :href="route('tools.users.index')" :active="request()->routeIs('tools.users.*')">

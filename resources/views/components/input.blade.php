@@ -11,7 +11,7 @@
                 name="{{ $name }}"
                 x-bind:type="reveal ? 'text' : 'password'"
                 value="{{ old($name, $value) }}"
-                {{ $attributes->class(['w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 pr-12 text-sm text-ink-900 outline-none ring-0 transition placeholder:text-ink-500 focus:border-brand-500']) }}
+                {{ $attributes->class(['w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 pr-12 text-sm text-ink-900 outline-none ring-0 transition placeholder:text-ink-500 focus:border-brand-500']) }}
             />
 
             <button
@@ -37,7 +37,7 @@
             name="{{ $name }}"
             type="{{ $type }}"
             value="{{ old($name, $value) }}"
-            {{ $attributes->class(['w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none ring-0 transition placeholder:text-ink-500 focus:border-brand-500']) }}
+            {{ $attributes->class(['w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none ring-0 transition placeholder:text-ink-500 focus:border-brand-500']) }}
         />
     @endif
 

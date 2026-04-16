@@ -2,268 +2,606 @@
 <html lang="id">
 <head>
     <meta charset="utf-8">
-    <title>Berita Acara Serah Terima Asset</title>
+    <title>Serah Terima Fasilitas ICT</title>
     <style>
         @page {
-            margin: 20px;
+            margin: 5px 6px;
         }
 
         body {
             font-family: DejaVu Sans, sans-serif;
-            font-size: 11px;
+            font-size: 8px;
             color: #111111;
             margin: 0;
-            line-height: 1.5;
+            line-height: 1.12;
         }
 
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 10px;
+        .page {
+            position: relative;
+            border: 1px solid #000;
+            padding: 3px 4px 4px 4px;
         }
 
-        .header h1 {
-            font-size: 16px;
-            font-weight: bold;
-            margin: 0 0 5px 0;
+        .content {
+            position: relative;
+            z-index: 1;
         }
 
-        .header h2 {
-            font-size: 14px;
-            margin: 0 0 5px 0;
-        }
-
-        .header p {
-            margin: 2px 0;
-        }
-
-        .section {
-            margin-bottom: 15px;
-        }
-
-        .section-title {
-            font-size: 12px;
-            font-weight: bold;
-            margin-bottom: 8px;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 3px;
-        }
-
-        table {
+        .header-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
-        }
-
-        table th,
-        table td {
             border: 1px solid #000;
-            padding: 6px;
-            text-align: left;
+            margin-bottom: 5px;
         }
 
-        table th {
-            background-color: #f0f0f0;
-            font-weight: bold;
+        .logo {
+            width: 52px;
+            height: 52px;
         }
 
-        .info-grid {
-            width: 100%;
-            margin-bottom: 15px;
+        .logo-wrap {
+            width: 58px;
         }
 
-        .info-grid td {
-            padding: 4px;
+        .header-table td {
+            padding: 3px 4px;
             border: none;
+            vertical-align: middle;
         }
 
-        .info-grid td.label {
-            width: 30%;
-            font-weight: normal;
+        .header-top td {
+            border-bottom: 1px solid #000;
         }
 
-        .info-grid td.separator {
-            width: 5%;
+        .header-logo {
+            border-right: 1px solid #000;
+        }
+
+        .header-meta {
+            border-left: 1px solid #000;
+        }
+
+        .header-pt {
+            border-right: 1px solid #000;
+        }
+
+        .doc-title {
             text-align: center;
-        }
-
-        .info-grid td.value {
-            width: 65%;
-        }
-
-        .signature-section {
-            margin-top: 30px;
-        }
-
-        .signature-grid {
-            width: 100%;
-            margin-top: 20px;
-        }
-
-        .signature-grid td {
-            text-align: center;
-            padding: 10px;
-            border: none;
-            width: 25%;
-        }
-
-        .signature-space {
-            height: 80px;
-        }
-
-        .underline {
-            text-decoration: underline;
+            font-size: 12px;
             font-weight: bold;
+            margin: 0;
         }
 
-        .footer {
-            margin-top: 30px;
+        .doc-meta {
+            text-align: right;
+            font-size: 8px;
+            line-height: 1.1;
+        }
+
+        .top-info {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+
+        .top-info td {
+            border: none;
+            padding: 1px 0;
             font-size: 9px;
-            color: #666;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0 0 5px 0;
+        }
+
+        .items-table th,
+        .items-table td {
+            border: 1px solid #000;
+            padding: 2px 3px;
+            vertical-align: top;
+        }
+
+        .items-table th {
+            font-weight: bold;
             text-align: center;
-            border-top: 1px solid #ccc;
-            padding-top: 10px;
+            background: #fff;
+        }
+
+        .item-summary {
+            margin: -2px 0 5px 0;
+            font-size: 8px;
+        }
+
+        .asset-photo-box {
+            border: 1px solid #000;
+            padding: 4px;
+            margin-top: 5px;
+        }
+
+        .asset-photo-label {
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .asset-photo-frame {
+            text-align: left;
+            min-height: 130px;
+        }
+
+        .asset-photo-frame img {
+            max-width: 260px;
+            max-height: 160px;
+            object-fit: contain;
+        }
+
+        .asset-photo-empty {
+            padding-top: 50px;
+            color: #444;
+        }
+
+        .terms-box {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #000;
+            margin-top: 4px;
+        }
+
+        .terms-box td {
+            border: none;
+            padding: 4px 5px;
+            vertical-align: top;
+        }
+
+        .terms-separator {
+            border-top: 1px solid #000;
+            margin: 4px 0 0 0;
+        }
+
+        .terms-list {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 2px;
+        }
+
+        .terms-list td {
+            border: none;
+            padding: 1px 0;
+            vertical-align: top;
+        }
+
+        .terms-list .num {
+            width: 14px;
+            padding-right: 4px;
+        }
+
+        .terms-list .indent {
+            padding-left: 14px;
+        }
+
+        .section-label {
+            font-weight: bold;
+            margin-top: 0;
+            margin-bottom: 2px;
+        }
+
+        .sign-main {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #000;
+            margin-top: 5px;
+        }
+
+        .sign-main td {
+            border: 1px solid #000;
+            padding: 3px 4px;
+            vertical-align: top;
+        }
+
+        .sign-title {
+            font-weight: bold;
+            text-align: center;
+            padding: 4px;
+        }
+
+        .field-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .field-table td {
+            border: none;
+            padding: 1px 0;
+        }
+
+        .field-table .label {
+            width: 28%;
+        }
+
+        .field-table .colon {
+            width: 8px;
+        }
+
+        .paren {
+            text-align: center;
+        }
+
+        .paren-wrap {
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        .paren-line {
+            display: inline-block;
+            width: 95px;
+            border-bottom: 1px solid #000;
+            height: 8px;
+            vertical-align: bottom;
+            margin: 0 3px;
+        }
+
+        .position-label {
+            text-align: center;
+        }
+
+        .sign-grid {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6px;
+        }
+
+        .sign-grid td {
+            border: none;
+            padding: 0;
+            vertical-align: top;
+        }
+
+        .sign-box {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .sign-box td {
+            border: none;
+            padding: 1px 0;
+        }
+
+        .sign-space {
+            height: 22px;
+        }
+
+        .sign-line {
+            display: inline-block;
+            min-width: 140px;
+            border-bottom: 1px solid #000;
+            height: 9px;
+            vertical-align: bottom;
+        }
+
+        .small {
+            font-size: 8px;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>BERITA ACARA SERAH TERIMA ASSET</h1>
-        <h2>{{ strtoupper($ictRequest->subject) }}</h2>
-        <p>Nomor Form ICT: {{ $ictRequest->form_number }}</p>
-        <p>Tanggal: {{ now()->format('d F Y') }}</p>
-    </div>
+    @php
+        $logoPath = public_path('images/eas-new.png');
+        $logoDataUri = is_file($logoPath)
+            ? 'data:image/png;base64,'.base64_encode((string) file_get_contents($logoPath))
+            : null;
+    @endphp
 
-    <div class="section">
-        <div class="section-title">I. INFORMASI ASSET</div>
-        <table>
-            <tr>
-                <th width="30%">Nama Asset</th>
-                <td width="70%">{{ $item->item_name }}</td>
-            </tr>
-            <tr>
-                <th>Kategori</th>
-                <td>{{ ucfirst($item->item_category) }}</td>
-            </tr>
-            <tr>
-                <th>Merk / Tipe</th>
-                <td>{{ $item->brand_type }}</td>
-            </tr>
-            @if($handover->model_specification)
-            <tr>
-                <th>Model / Spesifikasi</th>
-                <td>{{ $handover->model_specification }}</td>
-            </tr>
-            @endif
-            @if($handover->serial_number)
-            <tr>
-                <th>Nomor Seri</th>
-                <td>{{ $handover->serial_number }}</td>
-            </tr>
-            @endif
-            @if($handover->asset_number)
-            <tr>
-                <th>Nomor Asset</th>
-                <td>{{ $handover->asset_number }}</td>
-            </tr>
-            @endif
-            @if($handover->dept)
-            <tr>
-                <th>Dept / Lokasi</th>
-                <td>{{ $handover->dept }}</td>
-            </tr>
-            @endif
-        </table>
-    </div>
+    <div class="page">
+        <div class="content">
+            <table class="header-table">
+                <tr class="header-top">
+                    <td class="logo-wrap header-logo" style="width: 20%;">
+                        @if ($logoDataUri)
+                            <img src="{{ $logoDataUri }}" alt="EAS" class="logo">
+                        @endif
+                    </td>
+                    <td style="width: 60%;">
+                        <div class="doc-title">SERAH TERIMA FASILITAS ICT</div>
+                    </td>
+                    <td class="header-meta" style="width: 20%;">
+                        <div class="doc-meta">
+                            FMR-ICT-02<br>
+                            REV. 00
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="header-pt">
+                        <table class="top-info">
+                            <tr>
+                                <td style="width: 34px;">PT</td>
+                                <td style="width: 10px;">:</td>
+                                <td>{{ $ictRequest->unit?->code ? \Illuminate\Support\Str::before($ictRequest->unit->code, '-') : '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td>Dept.</td>
+                                <td>:</td>
+                                <td>{{ $handover->dept ?? '-' }}</td>
+                            </tr>
+                        </table>
+                    </td>
+                    <td class="header-meta">&nbsp;</td>
+                </tr>
+            </table>
 
-    <div class="section">
-        <div class="section-title">II. PIHAK PENYERAH (HRGA)</div>
-        <table class="info-grid">
-            <tr>
-                <td class="label">Nama</td>
-                <td class="separator">:</td>
-                <td class="value">{{ $handover->deliverer_name ?? '....................................' }}</td>
-            </tr>
-            <tr>
-                <td class="label">Jabatan</td>
-                <td class="separator">:</td>
-                <td class="value">{{ $handover->deliverer_position ?? '....................................' }}</td>
-            </tr>
-        </table>
-    </div>
+            @php
+                $itemType = $item->item_category ?: $item->item_name;
+                $itemQuantity = max((int) ($item->quantity ?? 1), 1);
+                $assetPhotoDataUri = null;
+                $assetPhotoPath = $item->photo_path ? storage_path('app/public/'.$item->photo_path) : null;
 
-    <div class="section">
-        <div class="section-title">III. PIHAK PENERIMA</div>
-        <table class="info-grid">
-            <tr>
-                <td class="label">Nama</td>
-                <td class="separator">:</td>
-                <td class="value">{{ $handover->recipient_name ?? '....................................' }}</td>
-            </tr>
-            <tr>
-                <td class="label">Jabatan</td>
-                <td class="separator">:</td>
-                <td class="value">{{ $handover->recipient_position ?? '....................................' }}</td>
-            </tr>
-        </table>
-    </div>
+                if ($assetPhotoPath && is_file($assetPhotoPath)) {
+                    $mimeType = mime_content_type($assetPhotoPath) ?: 'image/jpeg';
+                    $assetPhotoDataUri = 'data:'.$mimeType.';base64,'.base64_encode((string) file_get_contents($assetPhotoPath));
+                }
+            @endphp
 
-    <div class="section">
-        <div class="section-title">IV. SAKSI / MENGETAHUI (ICT STAFF)</div>
-        <table class="info-grid">
-            <tr>
-                <td class="label">Nama</td>
-                <td class="separator">:</td>
-                <td class="value">{{ $handover->witness_name ?? '....................................' }}</td>
-            </tr>
-            <tr>
-                <td class="label">Jabatan</td>
-                <td class="separator">:</td>
-                <td class="value">{{ $handover->witness_position ?? '....................................' }}</td>
-            </tr>
-        </table>
-    </div>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th style="width: 6%;">No.</th>
+                        <th style="width: 29%;">Jenis Barang</th>
+                        <th style="width: 35%;">Model</th>
+                        <th style="width: 15%;">Serial Number</th>
+                        <th style="width: 15%;">No. Aset</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="text-align: center;">1</td>
+                        <td>{{ $itemType ?: '-' }}</td>
+                        <td style="white-space: pre-line;">{{ $handover->model_specification ?: '-' }}</td>
+                        <td>{{ $handover->serial_number ?: '-' }}</td>
+                        <td>{{ $handover->asset_number ?: '-' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <table class="terms-box">
+                <tr>
+                    <td>
+                        <div class="section-label">HARDWARE</div>
+                        <table class="terms-list">
+                            <tr>
+                                <td class="num">1</td>
+                                <td>Aset ICT adalah milik Ehsan Agro Sentosa Group</td>
+                            </tr>
+                            <tr>
+                                <td class="num">2</td>
+                                <td>
+                                    User/ Pengguna bertanggung jawab untuk pemeliharaan, menjaga dari kehilangan dan kerusakan yang dikarenakan kelalaian user/ pengguna
+                                    <div class="indent">
+                                        User/ pengguna memastikan Aset ICT Perusahaan<br>
+                                        (i) Selalu berada ditempat/ tidak adanya pemindahan<br>
+                                        (ii) Tidak akan membiarkan dalam kondisi tanpa pengawasan
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="num">3</td>
+                                <td>
+                                    Akan mengembalikan aset ICT Perusahaan ketika :
+                                    <div class="indent">
+                                        (i) Tidak diperlukan lagi atau diminta untuk menyerahkan kepada orang yang berhak atau<br>
+                                        (ii) Berakhirnya Kontrak kerja / Berhenti Bekerja
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                        <div class="terms-separator"></div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="section-label">SOFTWARE</div>
+                        <table class="terms-list">
+                            <tr>
+                                <td class="num">1</td>
+                                <td>Dilarang menginstalasi atau menggunakan software tanpa licensi yang dimiliki oleh perusahaan (seperti game dan video)</td>
+                            </tr>
+                            <tr>
+                                <td class="num">2</td>
+                                <td>
+                                    Dilarang menggunakan Aset ICT perusahaan untuk memakai program perusak jaringan atau server
+                                    <div class="indent small">(e.g.v viruses, worms, trojan horses, email bombs, Ultrasuft, etc)</div>
+                                </td>
+                            </tr>
+                        </table>
 
-    <div class="section">
-        <div class="section-title">V. PERNYATAAN</div>
-        <p style="text-align: justify; margin-bottom: 15px;">
-            Dengan ini menyatakan bahwa asset tersebut di atas telah diserahkan dan diterima dengan baik dalam kondisi yang sesuai. 
-            Penyerahan dan penerimaan ini dilakukan dengan sadar dan tanpa paksaan dari pihak manapun.
-        </p>
-    </div>
+                        <div style="margin-top: 6px;">
+                            Dengan ini saya menerima aset ICT dan memenuhi syarat - syarat dan kondisi tersebut diatas :
+                        </div>
+                    </td>
+                </tr>
+            </table>
 
-    <div class="signature-section">
-        <div class="section-title">VI. TANDA TANGAN</div>
-        <table class="signature-grid">
-            <tr>
-                <td>
-                    <p>PIHAK PENYERAH</p>
-                    <p>(HRGA)</p>
-                    <div class="signature-space"></div>
-                    <p class="underline">{{ $handover->deliverer_name ?? '....................................' }}</p>
-                    <p>{{ $handover->deliverer_position ?? '....................................' }}</p>
-                </td>
-                <td>
-                    <p>SAKSI</p>
-                    <p>(ICT STAFF)</p>
-                    <div class="signature-space"></div>
-                    <p class="underline">{{ $handover->witness_name ?? '....................................' }}</p>
-                    <p>{{ $handover->witness_position ?? '....................................' }}</p>
-                </td>
-                <td>
-                    <p>PIHAK PENERIMA</p>
-                    <div class="signature-space"></div>
-                    <p class="underline">{{ $handover->recipient_name ?? '....................................' }}</p>
-                    <p>{{ $handover->recipient_position ?? '....................................' }}</p>
-                </td>
-            </tr>
-        </table>
-    </div>
+            <table class="sign-main">
+                <tr>
+                    <td style="width: 50%;" class="sign-title">Nama dan tanda tangan Pengguna/Penerima Aset</td>
+                    <td style="width: 50%;" class="sign-title">Diketahui Atasan Pemakai</td>
+                </tr>
+                <tr>
+                    <td>
+                        <table class="field-table">
+                            <tr>
+                                <td class="label">Nama</td>
+                                <td class="colon">:</td>
+                                <td style="width: 67%;">{{ $handover->recipient_name ?: '' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Divisi/Dept.</td>
+                                <td class="colon">:</td>
+                                <td>{{ $handover->dept ?: '' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Tanda tangan</td>
+                                <td class="colon">:</td>
+                                <td style="height: 22px;">&nbsp;</td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="paren"><span class="paren-wrap">(<span class="paren-line"></span>)</span></td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="position-label">{{ $handover->recipient_position ?: '' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Tanggal</td>
+                                <td class="colon">:</td>
+                                <td>{{ now()->format('d F Y') }}</td>
+                            </tr>
+                        </table>
+                    </td>
+                    <td>
+                        <table class="field-table">
+                            <tr>
+                                <td class="label">Nama</td>
+                                <td class="colon">:</td>
+                                <td style="width: 67%;">{{ $handover->supervisor_name ?: '' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Divisi/Dept.</td>
+                                <td class="colon">:</td>
+                                <td>{{ $handover->dept ?: '' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Tanda tangan</td>
+                                <td class="colon">:</td>
+                                <td style="height: 22px;">&nbsp;</td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="paren"><span class="paren-wrap">(<span class="paren-line"></span>)</span></td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="position-label">{{ $handover->supervisor_position ?: '' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Tanggal</td>
+                                <td class="colon">:</td>
+                                <td>{{ now()->format('d F Y') }}</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="sign-title">Diserahkan oleh</td>
+                    <td class="sign-title">Dikembalikan Oleh</td>
+                </tr>
+                <tr>
+                    <td>
+                        <table class="field-table">
+                            <tr>
+                                <td style="width: 50%; padding-right: 10px; vertical-align: top;">
+                                    <table class="field-table">
+                                        <tr>
+                                            <td class="label">Nama</td>
+                                            <td class="colon">:</td>
+                                            <td>{{ $handover->witness_name ?: '' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="label">Divisi/Dept.</td>
+                                            <td class="colon">:</td>
+                                            <td>{{ $handover->dept ?: '' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="label">Tanda tangan</td>
+                                            <td class="colon">:</td>
+                                            <td style="height: 20px;">&nbsp;</td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="3" class="paren"><span class="paren-wrap">(<span class="paren-line"></span>)</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="3" class="position-label">{{ $handover->witness_position ?: '' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="label">Tanggal</td>
+                                            <td class="colon">:</td>
+                                            <td>&nbsp;</td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                <td style="width: 50%; padding-left: 10px; vertical-align: top;">
+                                    <table class="field-table">
+                                        <tr>
+                                            <td class="label">Nama</td>
+                                            <td class="colon">:</td>
+                                            <td>{{ $handover->deliverer_name ?: '' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="label">Divisi/Dept.</td>
+                                            <td class="colon">:</td>
+                                            <td>{{ $handover->dept ?: '' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="label">Tanda tangan</td>
+                                            <td class="colon">:</td>
+                                            <td style="height: 20px;">&nbsp;</td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="3" class="paren"><span class="paren-wrap">(<span class="paren-line"></span>)</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="3" class="position-label">{{ $handover->deliverer_position ?: '' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="label">Tanggal</td>
+                                            <td class="colon">:</td>
+                                            <td>&nbsp;</td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                    <td>
+                        <table class="field-table">
+                            <tr>
+                                <td class="label">Nama</td>
+                                <td class="colon">:</td>
+                                <td style="width: 67%;">&nbsp;</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Divisi/Dept.</td>
+                                <td class="colon">:</td>
+                                <td>&nbsp;</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Tanda tangan</td>
+                                <td class="colon">:</td>
+                                <td style="height: 22px;">&nbsp;</td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="paren">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</td>
+                            </tr>
+                            <tr>
+                                <td colspan="3">&nbsp;</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Tanggal</td>
+                                <td class="colon">:</td>
+                                <td>&nbsp;</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
 
-    <div class="footer">
-        <p>Dokumen ini dicetak secara otomatis pada {{ now()->format('d F Y H:i') }}</p>
-        <p>Berita Acara Serah Terima Asset - {{ $ictRequest->form_number }}</p>
+            <div class="asset-photo-box">
+                <div class="asset-photo-label">Foto Asset</div>
+                <div class="asset-photo-frame">
+                    @if ($assetPhotoDataUri)
+                        <img src="{{ $assetPhotoDataUri }}" alt="{{ $item->photo_name ?: $item->item_name }}">
+                    @else
+                        <div class="asset-photo-empty">Tidak ada foto asset</div>
+                    @endif
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

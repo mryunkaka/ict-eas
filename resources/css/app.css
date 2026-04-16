@@ -397,4 +397,194 @@
     .ui-metric-icon {
         @apply inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white/80;
     }
+
+    /* =====================================================
+     * DataTables — Core resets (gantikan CSS bawaan DT)
+     * ===================================================== */
+
+    /* Sembunyikan sort icons bawaan DataTables —
+       project ini pakai server-side sort via x-sort-link */
+    .dt-column-order,
+    table.dataTable thead > tr > th .dt-column-order,
+    table.dataTable thead > tr > td .dt-column-order {
+        display: none !important;
+    }
+
+    table.dataTable thead > tr > th:active,
+    table.dataTable thead > tr > td:active {
+        outline: none;
+    }
+
+    table.dataTable thead > tr > th.dt-orderable-asc,
+    table.dataTable thead > tr > th.dt-orderable-desc,
+    table.dataTable thead > tr > th.dt-ordering-asc,
+    table.dataTable thead > tr > th.dt-ordering-desc,
+    table.dataTable thead > tr > td.dt-orderable-asc,
+    table.dataTable thead > tr > td.dt-orderable-desc {
+        padding-right: inherit;
+    }
+
+    table.dataTable thead > tr > th.dt-orderable-none,
+    table.dataTable thead > tr > td.dt-orderable-none {
+        cursor: default;
+    }
+
+    div.dt-container .dt-paging .ellipsis {
+        padding: 0 1em;
+    }
+
+    div.dt-container .dt-length,
+    div.dt-container .dt-search,
+    div.dt-container .dt-info,
+    div.dt-container .dt-processing,
+    div.dt-container .dt-paging {
+        color: inherit;
+    }
+
+    /* =====================================================
+     * DataTables — Layout & container
+     * ===================================================== */
+
+    div.dt-container {
+        padding: 1rem 1.5rem 0;
+    }
+
+    /* Top row (search bar row) */
+    div.dt-container .dt-layout-row {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    /* =====================================================
+     * DataTables — Search input
+     * ===================================================== */
+
+    div.dt-container .dt-search label {
+        display: none;
+    }
+
+    div.dt-container .dt-search {
+        margin-left: auto;
+    }
+
+    div.dt-container .dt-search input {
+        height: 2.5rem;
+        width: 16rem;
+        border-radius: 1rem;
+        border: 1px solid #d4dde8;
+        background: #f6f8fb;
+        padding: 0 1rem;
+        font-size: 0.875rem;
+        color: #112033;
+        outline: none;
+        transition: all 150ms ease;
+    }
+
+    div.dt-container .dt-search input::placeholder {
+        color: rgba(88, 112, 143, 0.7);
+    }
+
+    div.dt-container .dt-search input:focus {
+        border-color: #9f2431;
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(159, 36, 49, 0.12);
+    }
+
+    /* =====================================================
+     * DataTables — Pagination wrapper (visual separator)
+     * ===================================================== */
+
+    div.dt-container .dt-paging {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.25rem;
+        margin-top: 0 !important;
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(180deg, #f3f5f9 0%, #edf0f6 100%);
+        border-top: 1px solid #e8edf4;
+        border-radius: 0 0 1.5rem 1.5rem;
+    }
+
+    /* =====================================================
+     * DataTables — Pagination buttons
+     * ===================================================== */
+
+    div.dt-container .dt-paging .dt-paging-button {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: 2rem !important;
+        min-width: 2rem !important;
+        padding: 0 0.35rem !important;
+        border-radius: 0.6rem !important;
+        border: 1px solid transparent !important;
+        font-size: 0.8125rem !important;
+        font-weight: 600 !important;
+        color: #58708f !important;
+        cursor: pointer !important;
+        transition: all 150ms ease !important;
+        background: transparent !important;
+        line-height: 1 !important;
+        box-shadow: none !important;
+        text-decoration: none !important;
+    }
+
+    /* Prev / Next — brand tint */
+    div.dt-container .dt-paging .dt-paging-button.previous,
+    div.dt-container .dt-paging .dt-paging-button.next {
+        background: rgba(159, 36, 49, 0.08) !important;
+        border-color: rgba(159, 36, 49, 0.18) !important;
+        color: #9f2431 !important;
+    }
+
+    div.dt-container .dt-paging .dt-paging-button.previous:hover,
+    div.dt-container .dt-paging .dt-paging-button.next:hover {
+        background: rgba(159, 36, 49, 0.16) !important;
+        border-color: rgba(159, 36, 49, 0.3) !important;
+        color: #7f1721 !important;
+    }
+
+    /* First / Last — subtle dark */
+    div.dt-container .dt-paging .dt-paging-button.first,
+    div.dt-container .dt-paging .dt-paging-button.last {
+        color: #30445e !important;
+        background: rgba(17, 32, 51, 0.05) !important;
+        border-color: rgba(17, 32, 51, 0.1) !important;
+    }
+
+    div.dt-container .dt-paging .dt-paging-button.first:hover,
+    div.dt-container .dt-paging .dt-paging-button.last:hover {
+        background: rgba(17, 32, 51, 0.1) !important;
+        border-color: rgba(17, 32, 51, 0.18) !important;
+    }
+
+    /* Number buttons hover */
+    div.dt-container .dt-paging .dt-paging-button:not(.current):not(.disabled):not(.previous):not(.next):not(.first):not(.last):hover {
+        background: #e8edf4 !important;
+        border-color: #d4dde8 !important;
+        color: #112033 !important;
+    }
+
+    /* Active / current page */
+    div.dt-container .dt-paging .dt-paging-button.current,
+    div.dt-container .dt-paging .dt-paging-button.current:hover {
+        background: linear-gradient(135deg, #112033 0%, #9f2431 100%) !important;
+        border-color: transparent !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 14px -4px rgba(159, 36, 49, 0.5) !important;
+    }
+
+    /* Disabled */
+    div.dt-container .dt-paging .dt-paging-button.disabled,
+    div.dt-container .dt-paging .dt-paging-button.disabled:hover,
+    div.dt-container .dt-paging .dt-paging-button.disabled:active {
+        opacity: 0.35 !important;
+        cursor: not-allowed !important;
+        pointer-events: none !important;
+    }
 }
+

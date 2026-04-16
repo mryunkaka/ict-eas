@@ -1,5 +1,5 @@
 @php
-    $requestDetails = $requests->getCollection()->map(function ($request) {
+    $requestDetails = $requests->map(function ($request) {
         $globalQuotations = $request->quotations
             ->whereNull('ict_request_item_id')
             ->values()
@@ -134,6 +134,7 @@
                 pageIds: @js($pageIds),
                 selectedIds: [],
                 selectAllMatching: false,
+                totalMatching: @js($requests->count()),
                 detailMap: @js($requestDetails->keyBy('id')),
                 openDetailId: null,
                 printTarget: null,
@@ -374,6 +375,14 @@
                 toggleSelectAllMatching() {
                     this.selectAllMatching = !this.selectAllMatching;
                 },
+                selectAllInDatabase() {
+                    this.selectedIds = Array.from(new Set([...this.selectedIds, ...this.pageIds]));
+                    this.selectAllMatching = true;
+                },
+                clearSelection() {
+                    this.selectedIds = [];
+                    this.selectAllMatching = false;
+                },
                 openDetail(id) {
                     this.openDetailId = String(id);
                 },
@@ -462,6 +471,35 @@
                 },
             };
         }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const tableElement = document.getElementById('ict-requests-table');
+
+            if (!tableElement || typeof window.DataTable === 'undefined') {
+                return;
+            }
+
+            new window.DataTable(tableElement, {
+                paging: true,
+                searching: true,
+                info: false,
+                ordering: false,
+                lengthChange: false,
+                pageLength: 10,
+                language: {
+                    search: '',
+                    searchPlaceholder: 'Cari data...',
+                    zeroRecords: 'Data tidak ditemukan',
+                    emptyTable: 'Belum ada data.',
+                    paginate: {
+                        first: '«',
+                        previous: '‹',
+                        next: '›',
+                        last: '»',
+                    },
+                },
+            });
+        });
     </script>
     <div
         x-data="ictRequestsData()"
@@ -471,27 +509,22 @@
             <x-alert>{{ session('status') }}</x-alert>
         @endif
 
-        <x-card title="Permintaan Fasilitas ICT" subtitle="Admin ICT membuat berkas, approval manual berjenjang, PDF TTD lengkap diunggah ulang, lalu dilanjutkan data PPNK per barang">
+        <x-card>
             <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                <form method="GET" class="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_160px_auto]">
+                <form method="GET" class="grid gap-4 md:grid-cols-[160px_160px_auto]">
                     <label class="block space-y-2">
-                        <span class="text-sm font-medium text-ink-700">Pencarian</span>
-                        <input name="search" value="{{ $filters['search'] }}" type="text" placeholder="Cari subjek, unit, pemohon, status" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition placeholder:text-ink-500 focus:border-brand-500" />
+                        <span class="text-sm font-medium text-ink-700">Dari</span>
+                        <input name="from" value="{{ $filters['from'] }}" type="date" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500" />
                     </label>
 
                     <label class="block space-y-2">
-                        <span class="text-sm font-medium text-ink-700">Tampilkan</span>
-                        <select name="per_page" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-brand-500">
-                            @foreach ([10, 20, 30, 50, 100] as $option)
-                                <option value="{{ $option }}" @selected($perPage === $option)>{{ $option }} data</option>
-                            @endforeach
-                        </select>
+                        <span class="text-sm font-medium text-ink-700">Sampai</span>
+                        <input name="until" value="{{ $filters['until'] }}" type="date" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500" />
                     </label>
 
                     <div class="flex items-end gap-2">
                         <x-button type="submit">
-                            <x-heroicon-o-magnifying-glass class="mr-2 h-4 w-4" />
-                            Cari
+                            Terapkan
                         </x-button>
                         <x-button :href="route('forms.ict-requests.index')" variant="secondary">
                             <x-heroicon-o-arrow-path class="mr-2 h-4 w-4" />
@@ -511,91 +544,95 @@
                             Buat Permintaan
                         </x-button>
                     @endif
-                    <x-button :href="route('dashboard')" variant="secondary">Kembali</x-button>
                 </div>
+            </div>
+            <div class="mt-4 rounded-2xl border border-ink-100 bg-ink-50/80 px-4 py-3 text-sm text-ink-700">
+                Filter tanggal aktif: <span class="font-semibold text-ink-900">{{ $activeFilterRangeLabel }}</span>
             </div>
         </x-card>
 
-        <x-card title="Daftar Permintaan" :subtitle="'Total '.$requests->total().' data'">
-            @if (auth()->user()->canCreateIctRequest())
-                <form method="POST" action="{{ route('forms.ict-requests.bulk-destroy') }}" class="space-y-4" x-on:submit="if (!selectAllMatching && selectedIds.length === 0) { $event.preventDefault(); } else if (!confirm('Hapus data yang dipilih?')) { $event.preventDefault(); }">
-                    @csrf
-                    @method('DELETE')
-                    <input type="hidden" name="search" value="{{ $filters['search'] }}">
-                    <input type="hidden" name="per_page" value="{{ $perPage }}">
-                    <input type="hidden" name="sort" value="{{ $sort }}">
-                    <input type="hidden" name="direction" value="{{ $direction }}">
-                    <input type="hidden" name="select_all_matching" :value="selectAllMatching ? 1 : 0">
+	        <div class="overflow-hidden rounded-3xl border border-ink-100 bg-white/90 shadow-[0_20px_50px_-30px_rgba(17,32,51,0.35)]">
+	            @if (auth()->user()->canCreateIctRequest())
+	                <form method="POST" action="{{ route('forms.ict-requests.bulk-destroy') }}" class="border-b border-ink-100 p-4" x-on:submit="if (!selectAllMatching && selectedIds.length === 0) { $event.preventDefault(); } else if (!confirm('Hapus data yang dipilih?')) { $event.preventDefault(); }">
+	                    @csrf
+	                    @method('DELETE')
+	                    <input type="hidden" name="from" value="{{ $filters['from'] }}">
+	                    <input type="hidden" name="until" value="{{ $filters['until'] }}">
+	                    <input type="hidden" name="sort" value="{{ $sort }}">
+	                    <input type="hidden" name="direction" value="{{ $direction }}">
+	                    <input type="hidden" name="select_all_matching" :value="selectAllMatching ? 1 : 0">
 
-                    <template x-for="id in selectedIds" :key="id">
-                        <input type="hidden" name="selected_ids[]" :value="id">
-                    </template>
+	                    <template x-for="id in selectedIds" :key="id">
+	                        <input type="hidden" name="selected_ids[]" :value="id">
+	                    </template>
 
-                    <div class="flex flex-col gap-3 rounded-2xl border border-ink-100 bg-ink-50/80 p-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div class="space-y-2 text-sm text-ink-600">
-                            <label class="inline-flex items-center gap-3">
-                                <input type="checkbox" :checked="allSelectedOnPage" x-on:change="togglePageSelection($event)" class="rounded border-ink-300 text-ink-900 focus:ring-ink-400" />
-                                <span>Pilih semua data di halaman ini</span>
-                            </label>
+	                    <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-700" x-cloak x-show="selectedIds.length > 0 || selectAllMatching">
+	                        <button type="submit" class="inline-flex items-center justify-center rounded-2xl bg-danger-500 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95">
+	                            <x-heroicon-o-trash class="mr-2 h-4 w-4" />
+	                            Delete selected
+	                        </button>
 
-                            <div class="flex flex-wrap items-center gap-3">
-                                <span x-text="`${selectedIds.length} data dipilih di halaman ini`"></span>
-                                <button type="button" x-on:click="toggleSelectAllMatching()" class="inline-flex items-center gap-2 rounded-2xl border border-ink-200 bg-white px-3 py-2 text-xs font-semibold text-ink-700 transition hover:bg-ink-100">
-                                    <x-heroicon-o-squares-plus class="h-4 w-4" />
-                                    <span x-text="selectAllMatching ? 'Batalkan pilih semua hasil filter' : 'Pilih semua hasil filter di database'"></span>
-                                </button>
-                            </div>
+	                        <div class="flex flex-wrap items-center gap-4">
+	                            <span class="text-ink-600" x-text="selectAllMatching ? `${totalMatching} records selected` : `${selectedIds.length} records selected`"></span>
+	                            <button
+	                                type="button"
+	                                x-on:click="selectAllInDatabase()"
+	                                x-show="!selectAllMatching && selectedIds.length > 0 && totalMatching > selectedIds.length"
+	                                class="text-brand-700 hover:underline"
+	                            >
+	                                Select all <span x-text="totalMatching"></span> data
+	                            </button>
+	                            <button type="button" x-on:click="clearSelection()" class="text-danger-600 hover:underline">Deselect all</button>
+	                        </div>
+	                    </div>
 
-                            <p x-show="selectAllMatching" class="text-xs text-brand-700">
-                                Semua data hasil filter akan dipilih, termasuk data yang tidak tampil di halaman ini.
-                            </p>
-                        </div>
+	                    <div class="text-sm text-ink-600" x-cloak x-show="selectedIds.length === 0 && !selectAllMatching">
+	                        Total {{ $requests->count() }} data
+	                    </div>
+	                </form>
+	            @else
+	                <div class="border-b border-ink-100 p-4 text-sm text-ink-600">
+	                    Total {{ $requests->count() }} data
+	                </div>
+	            @endif
 
-                        <button type="submit" class="inline-flex items-center justify-center rounded-2xl bg-danger-500 px-4 py-3 text-sm font-semibold text-white transition hover:opacity-95">
-                            <x-heroicon-o-trash class="mr-2 h-4 w-4" />
-                            Bulk Delete
-                        </button>
-                    </div>
-                </form>
-            @endif
-
-            <x-table>
-                <thead class="bg-ink-50 text-left text-ink-500">
-                    <tr>
-                        <th class="px-4 py-3">
-                            <span class="sr-only">Select</span>
-                        </th>
-                        <th class="px-4 py-3">
-                            <x-sort-link column="subject" label="Subjek" :sort="$sort" :direction="$direction" />
-                        </th>
-                        <th class="px-4 py-3">Unit</th>
-                        <th class="px-4 py-3">Pemohon</th>
-                        <th class="px-4 py-3">
-                            <x-sort-link column="priority" label="Prioritas" :sort="$sort" :direction="$direction" />
-                        </th>
-                        <th class="px-4 py-3">
-                            <x-sort-link column="status" label="Status" :sort="$sort" :direction="$direction" />
-                        </th>
-                        <th class="px-4 py-3">
-                            <x-sort-link column="created_at" label="Tanggal" :sort="$sort" :direction="$direction" />
-                        </th>
-                        <th class="px-4 py-3 text-right">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-ink-100">
-                    @forelse ($requests as $request)
-                        <tr class="align-top">
+	            <div class="overflow-x-auto">
+	                <table id="ict-requests-table" class="min-w-full divide-y divide-ink-100 text-sm">
+	                    <thead class="bg-ink-50 text-left text-ink-500">
+	                        <tr>
+	                            <th class="px-4 py-3">
+	                                <label class="inline-flex items-center gap-2">
+	                                    <input type="checkbox" :checked="allSelectedOnPage" x-on:change="togglePageSelection($event)" class="rounded border-ink-300 text-ink-900 focus:ring-ink-400" />
+	                                    <span class="sr-only">Pilih semua</span>
+	                                </label>
+	                            </th>
+	                            <th class="px-4 py-3">
+	                                <x-sort-link column="created_at" label="Tanggal" :sort="$sort" :direction="$direction" />
+	                            </th>
+	                            <th class="px-4 py-3">
+	                                <x-sort-link column="subject" label="Subject" :sort="$sort" :direction="$direction" />
+	                            </th>
+	                            <th class="px-4 py-3">Pemohon</th>
+	                            <th class="px-4 py-3">Dept</th>
+	                            <th class="px-4 py-3">
+	                                <x-sort-link column="priority" label="Prioritas" :sort="$sort" :direction="$direction" />
+	                            </th>
+	                            <th class="px-4 py-3">Alasan kebutuhan</th>
+	                            <th class="px-4 py-3">
+	                                <x-sort-link column="status" label="Status" :sort="$sort" :direction="$direction" />
+	                            </th>
+	                            <th class="px-4 py-3 text-right">Aksi</th>
+	                        </tr>
+	                    </thead>
+	                    <tbody class="divide-y divide-ink-100">
+	                    @forelse ($requests as $request)
+	                        <tr class="align-top">
                             <td class="px-4 py-3">
                                 <input type="checkbox" value="{{ $request->id }}" x-model="selectedIds" class="rounded border-ink-300 text-ink-900 focus:ring-ink-400" />
                             </td>
+                            <td class="px-4 py-3">{{ $request->created_at?->format('d M Y') }}</td>
                             <td class="px-4 py-3">
                                 <div class="font-semibold text-ink-900">{{ $request->subject }}</div>
-                                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-500">
-                                    <span>{{ strtoupper($request->quotation_mode) }}</span>
-                                    @if ($request->revision_number > 0)
-                                        <span class="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-700">Rev-{{ $request->revision_number }}</span>
-                                    @endif
-                                </div>
                                 @if ($request->rejected_reason || $request->revision_note)
                                     <div class="mt-3 space-y-2 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-ink-700">
                                         @if ($request->rejected_reason)
@@ -622,11 +659,11 @@
                                     </a>
                                 @endif
                             </td>
-                            <td class="px-4 py-3">{{ $request->unit?->name }}</td>
                             <td class="px-4 py-3">{{ $request->requester?->name }}</td>
+                            <td class="px-4 py-3">{{ $request->unit?->name }}</td>
                             <td class="px-4 py-3"><x-badge variant="{{ $request->priority === 'urgent' ? 'warning' : 'default' }}">{{ strtoupper($request->priority) }}</x-badge></td>
+                            <td class="px-4 py-3">{{ \Illuminate\Support\Str::limit($request->justification, 140) }}</td>
                             <td class="px-4 py-3"><x-badge variant="{{ in_array($request->status, ['progress_ppnk'], true) || ($request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path) ? 'warning' : 'success' }}">{{ $request->statusLabel() }}</x-badge></td>
-                            <td class="px-4 py-3">{{ $request->created_at?->format('d M Y') }}</td>
                             <td class="px-4 py-3">
                                 <div class="ui-action-row justify-end">
                                     <x-button type="button" variant="action-neutral" x-on:click="openDetail('{{ $request->id }}')" title="Lihat detail">
@@ -718,16 +755,14 @@
                                 </div>
                             </td>
                         </tr>
-                    @empty
-                        <tr><td colspan="8" class="px-4 py-6 text-center text-ink-500">Belum ada data.</td></tr>
-                    @endforelse
-                </tbody>
-            </x-table>
+	                    @empty
+	                        <tr><td colspan="9" class="px-4 py-6 text-center text-ink-500">Belum ada data.</td></tr>
+	                    @endforelse
+	                    </tbody>
+	                </table>
+	            </div>
 
-            <div class="mt-6">
-                {{ $requests->links() }}
-            </div>
-        </x-card>
+	        </div>
 
         <div
             x-show="openDetailId"

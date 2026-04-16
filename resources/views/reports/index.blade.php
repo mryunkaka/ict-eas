@@ -1,6 +1,6 @@
 <x-app-layout>
     <div class="space-y-6">
-        <x-card title="Report Rekap ICT" subtitle="Filter modul, tanggal, dan status lalu export ke Excel atau PDF">
+        <x-card>
             <form method="GET" class="grid gap-4 md:grid-cols-4 xl:grid-cols-6">
                 <x-select
                     name="module"
@@ -21,6 +21,7 @@
                     <x-button type="submit">Filter</x-button>
                 </div>
                 <div class="flex items-end gap-3">
+                    <x-button :href="route('reports.monitoring-pp')" variant="secondary">Monitoring PP</x-button>
                     <x-button :href="route('reports.export.excel', request()->query())" variant="secondary">Excel</x-button>
                     <x-button :href="route('reports.export.pdf', request()->query())" variant="secondary">PDF</x-button>
                 </div>

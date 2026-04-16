@@ -1,6 +1,6 @@
 <x-app-layout>
     <div class="space-y-6">
-        <x-card title="Tools Ping Server" subtitle="Cek resolusi host, port, dan latency socket">
+        <x-card>
             <form method="POST" action="{{ route('tools.ping.check') }}" class="grid gap-4 md:grid-cols-4">
                 @csrf
                 <x-input name="host" label="Host" :value="old('host', $result['host'] ?? null)" placeholder="example.internal" />

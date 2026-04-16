@@ -1,8 +1,10 @@
 import './bootstrap';
 
 import Alpine from 'alpinejs';
+import DataTable from 'datatables.net-dt';
 
 window.Alpine = Alpine;
+window.DataTable = DataTable;
 
 const sidebarPreferenceKey = 'ict-eas:sidebar-open';
 
@@ -10,6 +12,8 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('adminShell', () => ({
         sidebarOpen: false,
         activeNavFocusTimer: null,
+        currentWitaLabel: '',
+        clockTimer: null,
         init() {
             this.sidebarOpen = localStorage.getItem(sidebarPreferenceKey) === 'true';
 
@@ -27,7 +31,18 @@ document.addEventListener('alpine:init', () => {
                 }
             });
 
+            this.updateWitaClock();
+            this.clockTimer = window.setInterval(() => this.updateWitaClock(), 1000);
             this.queueActiveNavFocus(0);
+        },
+        destroy() {
+            if (this.activeNavFocusTimer) {
+                window.clearTimeout(this.activeNavFocusTimer);
+            }
+
+            if (this.clockTimer) {
+                window.clearInterval(this.clockTimer);
+            }
         },
         toggleSidebar() {
             this.sidebarOpen = !this.sidebarOpen;
@@ -60,6 +75,21 @@ document.addEventListener('alpine:init', () => {
                 inline: 'nearest',
                 behavior: 'smooth',
             });
+        },
+        updateWitaClock() {
+            const formatter = new Intl.DateTimeFormat('id-ID', {
+                weekday: 'long',
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Makassar',
+            });
+
+            this.currentWitaLabel = `${formatter.format(new Date())} WITA`;
         },
     }));
 

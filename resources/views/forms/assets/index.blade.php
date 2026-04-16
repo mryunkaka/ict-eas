@@ -1,11 +1,11 @@
 <x-app-layout>
     <div class="space-y-6">
-        <x-card title="Master Asset" subtitle="Lifecycle asset, inventarisasi, dan pencarian serial">
+        <x-card>
             <form method="GET" class="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_auto]">
                 <x-input name="search" label="Cari Asset" :value="request('search')" />
                 <label class="block space-y-2">
                     <span class="text-sm font-medium text-ink-700">Tampilkan</span>
-                    <select name="per_page" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-brand-500">
+                    <select name="per_page" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500">
                         @foreach ([10, 20, 30, 50, 100] as $option)
                             <option value="{{ $option }}" @selected($perPage === $option)>{{ $option }} data</option>
                         @endforeach

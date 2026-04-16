@@ -14,12 +14,14 @@ use App\Models\IctRequestPpnkDocument;
 use App\Models\IctRequestQuotation;
 use App\Models\Asset;
 use App\Models\AssetHandover;
+use App\Support\PublicFileUpload;
 use App\Support\UnitScope;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage as StorageFacade;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -32,14 +34,13 @@ class IctRequestController extends Controller
 {
     public function index(Request $request): View
     {
-        $perPage = $this->resolvePerPage($request);
         $sort = $this->resolveSort($request);
         $direction = $this->resolveDirection($request);
+        $dateFilters = $this->resolveDateFilters($request);
 
         $requests = $this->buildIndexQuery($request)
             ->orderBy($sort, $direction)
-            ->paginate($perPage)
-            ->withQueryString();
+            ->get();
 
         $requests->load([
             'requester:id,name',
@@ -53,10 +54,11 @@ class IctRequestController extends Controller
             'requests' => $requests,
             'sort' => $sort,
             'direction' => $direction,
-            'perPage' => $perPage,
             'filters' => [
-                'search' => $request->string('search')->toString(),
+                'from' => $dateFilters['from']->toDateString(),
+                'until' => $dateFilters['until']->toDateString(),
             ],
+            'activeFilterRangeLabel' => $dateFilters['label'],
         ]);
     }
 
@@ -84,14 +86,14 @@ class IctRequestController extends Controller
 
         $items = $request->validated('items');
         $quotationMode = (string) $request->input('quotation_mode', 'global');
+        $unitCode = $user->unit?->code ?? 'UNIT';
+        $formIdentifier = $this->buildFormIdentifier((string) $unitCode, $this->resolveNextFormSequence((int) $user->unit_id));
 
         $ictRequest = IctRequest::create([
             'unit_id' => $user->unit_id,
             'requester_id' => $user->id,
-            'subject' => $this->buildSubject(
-                (string) $request->input('request_category'),
-                (string) data_get($items, '0.item_name', 'Item')
-            ),
+            'form_number' => $formIdentifier,
+            'subject' => $formIdentifier,
             'request_category' => (string) $request->input('request_category'),
             'priority' => (string) $request->input('priority'),
             'status' => 'drafted',
@@ -136,9 +138,13 @@ class IctRequestController extends Controller
         }
 
         $ictRequest->update([
-            'subject' => $this->buildSubject(
-                (string) $request->input('request_category'),
-                (string) data_get($items, '0.item_name', 'Item')
+            'subject' => $ictRequest->subject ?: $ictRequest->form_number ?: $this->buildFormIdentifier(
+                (string) ($ictRequest->unit?->code ?? 'UNIT'),
+                $this->resolveNextFormSequence((int) $ictRequest->unit_id)
+            ),
+            'form_number' => $ictRequest->form_number ?: $ictRequest->subject ?: $this->buildFormIdentifier(
+                (string) ($ictRequest->unit?->code ?? 'UNIT'),
+                $this->resolveNextFormSequence((int) $ictRequest->unit_id)
             ),
             'request_category' => (string) $request->input('request_category'),
             'priority' => (string) $request->input('priority'),
@@ -683,20 +689,51 @@ class IctRequestController extends Controller
         return back()->with('status', 'Data PO berhasil disimpan. Status: Progress Menunggu Barang Diterima.');
     }
 
-    protected function buildSubject(string $category, string $itemName): string
+    protected function buildFormIdentifier(string $unitCode, int $sequence): string
     {
-        $categoryLabel = match ($category) {
-            'software' => 'Software',
-            'accessories' => 'Accessories',
-            default => 'Hardware',
-        };
+        $normalizedUnitCode = Str::upper(trim($unitCode)) !== '' ? Str::upper(trim($unitCode)) : 'UNIT';
 
-        return Str::limit(trim($categoryLabel.' - '.$itemName), 255, '');
+        return sprintf('%s-FORM ICT-%03d', $normalizedUnitCode, $sequence);
+    }
+
+    protected function resolveNextFormSequence(int $unitId): int
+    {
+        $usedSequences = IctRequest::query()
+            ->where('unit_id', $unitId)
+            ->pluck('form_number')
+            ->map(fn ($formNumber) => $this->extractFormSequence((string) $formNumber))
+            ->filter(fn ($sequence) => $sequence !== null)
+            ->sort()
+            ->values();
+
+        $expectedSequence = 1;
+
+        foreach ($usedSequences as $sequence) {
+            if ($sequence > $expectedSequence) {
+                break;
+            }
+
+            if ($sequence === $expectedSequence) {
+                $expectedSequence++;
+            }
+        }
+
+        return $expectedSequence;
+    }
+
+    protected function extractFormSequence(string $formNumber): ?int
+    {
+        if (! preg_match('/FORM ICT-(\d+)$/', Str::upper(trim($formNumber)), $matches)) {
+            return null;
+        }
+
+        return (int) $matches[1];
     }
 
     protected function buildIndexQuery(Request $request): Builder
     {
         $search = $request->string('search')->toString();
+        $dateFilters = $this->resolveDateFilters($request);
 
         return UnitScope::apply(
             IctRequest::query()
@@ -704,9 +741,11 @@ class IctRequestController extends Controller
                     'id',
                     'unit_id',
                     'requester_id',
+                    'form_number',
                     'subject',
                     'priority',
                     'status',
+                    'justification',
                     'created_at',
                     'quotation_mode',
                     'revision_number',
@@ -724,6 +763,10 @@ class IctRequestController extends Controller
                     'unit:id,name',
                     'items.ppnkDocument:id,ict_request_id,ppnk_number,attachment_name,attachment_path,attachment_mime',
                 ])
+                ->whereBetween('created_at', [
+                    $dateFilters['from']->copy()->startOfDay(),
+                    $dateFilters['until']->copy()->endOfDay(),
+                ])
                 ->when($search !== '', function ($query) use ($search) {
                     $query->where(function ($inner) use ($search) {
                         $inner->where('subject', 'like', "%{$search}%")
@@ -735,6 +778,43 @@ class IctRequestController extends Controller
                 }),
             $request->user()
         );
+    }
+
+    protected function resolveDateFilters(Request $request): array
+    {
+        $validated = $request->validate([
+            'from' => ['nullable', 'date'],
+            'until' => ['nullable', 'date'],
+        ]);
+
+        $nowWita = now('Asia/Makassar');
+        $defaultFrom = $nowWita->month <= 6
+            ? $nowWita->copy()->startOfYear()
+            : $nowWita->copy()->month(7)->startOfMonth();
+        $defaultUntil = $nowWita->month <= 6
+            ? $nowWita->copy()->month(6)->endOfMonth()
+            : $nowWita->copy()->endOfYear();
+
+        $from = isset($validated['from']) && $validated['from']
+            ? Carbon::parse($validated['from'], 'Asia/Makassar')
+            : $defaultFrom;
+        $until = isset($validated['until']) && $validated['until']
+            ? Carbon::parse($validated['until'], 'Asia/Makassar')
+            : $defaultUntil;
+
+        if ($from->gt($until)) {
+            [$from, $until] = [$until, $from];
+        }
+
+        return [
+            'from' => $from,
+            'until' => $until,
+            'label' => sprintf(
+                '%s s/d %s',
+                $from->locale('id')->translatedFormat('l, d F Y'),
+                $until->locale('id')->translatedFormat('l, d F Y')
+            ),
+        ];
     }
 
     protected function resolvePerPage(Request $request): int
@@ -797,61 +877,12 @@ class IctRequestController extends Controller
 
     protected function resolveQuotationAttachmentStorage(UploadedFile $attachment): array
     {
-        $originalName = $attachment->getClientOriginalName();
-        $existingAttachment = IctRequestQuotation::query()
-            ->where('attachment_name', $originalName)
-            ->where('attachment_mime', 'application/pdf')
-            ->latest('id')
-            ->first(['attachment_name', 'attachment_path', 'attachment_size', 'attachment_mime']);
-
-        if ($existingAttachment && $existingAttachment->attachment_path && Storage::disk('public')->exists($existingAttachment->attachment_path)) {
-            return [
-                'name' => (string) $existingAttachment->attachment_name,
-                'path' => (string) $existingAttachment->attachment_path,
-                'size' => $existingAttachment->attachment_size,
-                'mime' => (string) $existingAttachment->attachment_mime,
-            ];
-        }
-
-        $storedPath = $attachment->storeAs('ict-request-quotations', $originalName, 'public');
-
-        return [
-            'name' => $originalName,
-            'path' => $storedPath,
-            'size' => $attachment->getSize(),
-            'mime' => $attachment->getClientMimeType(),
-        ];
+        return PublicFileUpload::store($attachment, 'ict-request-quotations', 255, 'quotation');
     }
 
     protected function resolveItemPhotoStorage(UploadedFile $photo): array
     {
-        $originalName = $photo->getClientOriginalName();
-        $mime = $photo->getClientMimeType();
-
-        // Cek apakah foto dengan nama dan mime yang sama sudah ada di database
-        $existingPhoto = IctRequestItem::query()
-            ->where('photo_name', $originalName)
-            ->whereNotNull('photo_path')
-            ->latest('id')
-            ->first(['photo_name', 'photo_path', 'photo_size']);
-
-        // Jika file sudah ada di storage dan masih referenced di database, gunakan file yang sama
-        if ($existingPhoto && $existingPhoto->photo_path && Storage::disk('public')->exists($existingPhoto->photo_path)) {
-            return [
-                'name' => (string) $existingPhoto->photo_name,
-                'path' => (string) $existingPhoto->photo_path,
-                'size' => $existingPhoto->photo_size,
-            ];
-        }
-
-        // Jika file tidak ada, simpan dengan nama asli
-        $storedPath = $photo->storeAs('ict-request-items', $originalName, 'public');
-
-        return [
-            'name' => $originalName,
-            'path' => $storedPath,
-            'size' => $photo->getSize(),
-        ];
+        return PublicFileUpload::store($photo, 'ict-request-items', 15, 'photo');
     }
 
     protected function syncRequestDetails(IctRequest $ictRequest, array $items, array $globalQuotations, string $quotationMode): void
@@ -1241,98 +1272,17 @@ class IctRequestController extends Controller
 
     protected function storePpnkAttachment(UploadedFile $attachment): array
     {
-        $originalName = $attachment->getClientOriginalName();
-        $mime = $attachment->getClientMimeType();
-
-        // Cek apakah file dengan nama yang sama sudah ada di database
-        $existingAttachment = IctRequestPpnkDocument::query()
-            ->where('attachment_name', $originalName)
-            ->where('attachment_mime', $mime)
-            ->latest('id')
-            ->first(['attachment_name', 'attachment_path', 'attachment_size', 'attachment_mime']);
-
-        // Jika file sudah ada di storage dan masih referenced di database, gunakan file yang sama
-        if ($existingAttachment && $existingAttachment->attachment_path && Storage::disk('public')->exists($existingAttachment->attachment_path)) {
-            return [
-                'name' => (string) $existingAttachment->attachment_name,
-                'path' => (string) $existingAttachment->attachment_path,
-                'size' => $existingAttachment->attachment_size,
-                'mime' => (string) $existingAttachment->attachment_mime,
-            ];
-        }
-
-        $storedPath = $attachment->storeAs('ict-request-ppnk', $originalName, 'public');
-
-        return [
-            'name' => $originalName,
-            'path' => $storedPath,
-            'size' => $attachment->getSize(),
-            'mime' => $mime,
-        ];
+        return PublicFileUpload::store($attachment, 'ict-request-ppnk', 255, 'ppnk');
     }
 
     protected function storePpmAttachment(UploadedFile $attachment): array
     {
-        $originalName = $attachment->getClientOriginalName();
-        $mime = $attachment->getClientMimeType();
-
-        // Cek apakah file dengan nama yang sama sudah ada di database
-        $existingAttachment = IctRequestPpmDocument::query()
-            ->where('attachment_name', $originalName)
-            ->where('attachment_mime', $mime)
-            ->latest('id')
-            ->first(['attachment_name', 'attachment_path', 'attachment_size', 'attachment_mime']);
-
-        // Jika file sudah ada di storage dan masih referenced di database, gunakan file yang sama
-        if ($existingAttachment && $existingAttachment->attachment_path && Storage::disk('public')->exists($existingAttachment->attachment_path)) {
-            return [
-                'name' => (string) $existingAttachment->attachment_name,
-                'path' => (string) $existingAttachment->attachment_path,
-                'size' => $existingAttachment->attachment_size,
-                'mime' => (string) $existingAttachment->attachment_mime,
-            ];
-        }
-
-        $storedPath = $attachment->storeAs('ict-request-ppm', $originalName, 'public');
-
-        return [
-            'name' => $originalName,
-            'path' => $storedPath,
-            'size' => $attachment->getSize(),
-            'mime' => $mime,
-        ];
+        return PublicFileUpload::store($attachment, 'ict-request-ppm', 255, 'ppm');
     }
 
     protected function storePoAttachment(UploadedFile $attachment): array
     {
-        $originalName = $attachment->getClientOriginalName();
-        $mime = $attachment->getClientMimeType();
-
-        // Cek apakah file dengan nama yang sama sudah ada di database
-        $existingAttachment = IctRequestPoDocument::query()
-            ->where('attachment_name', $originalName)
-            ->where('attachment_mime', $mime)
-            ->latest('id')
-            ->first(['attachment_name', 'attachment_path', 'attachment_size', 'attachment_mime']);
-
-        // Jika file sudah ada di storage dan masih referenced di database, gunakan file yang sama
-        if ($existingAttachment && $existingAttachment->attachment_path && Storage::disk('public')->exists($existingAttachment->attachment_path)) {
-            return [
-                'name' => (string) $existingAttachment->attachment_name,
-                'path' => (string) $existingAttachment->attachment_path,
-                'size' => $existingAttachment->attachment_size,
-                'mime' => (string) $existingAttachment->attachment_mime,
-            ];
-        }
-
-        $storedPath = $attachment->storeAs('ict-request-po', $originalName, 'public');
-
-        return [
-            'name' => $originalName,
-            'path' => $storedPath,
-            'size' => $attachment->getSize(),
-            'mime' => $mime,
-        ];
+        return PublicFileUpload::store($attachment, 'ict-request-po', 255, 'po');
     }
 
     protected function deleteIctRequestFiles(IctRequest $ictRequest): void
@@ -1518,16 +1468,7 @@ class IctRequestController extends Controller
 
     protected function storeHandoverAttachment(UploadedFile $file, string $prefix): array
     {
-        $extension = $file->getClientOriginalExtension() ?: $file->guessExtension();
-        $filename = $prefix . '-' . Str::uuid()->toString() . '.' . $extension;
-        $path = $file->storeAs('ict-handover-documents', $filename, 'public');
-
-        return [
-            'name' => $file->getClientOriginalName(),
-            'path' => $path,
-            'size' => $file->getSize(),
-            'mime' => $file->getMimeType(),
-        ];
+        return PublicFileUpload::store($file, 'ict-handover-documents', 255, $prefix);
     }
 
     public function handoverReportPdf(IctRequest $ictRequest, AssetHandover $assetHandover): BinaryFileResponse|Response
@@ -1535,14 +1476,17 @@ class IctRequestController extends Controller
         $request = request();
         abort_unless($this->canAccessRequest($request, $ictRequest), 403);
         abort_unless($assetHandover->ict_request_id === $ictRequest->id, 404);
-        abort_unless($assetHandover->handover_report_path, 404);
+        $assetHandover->loadMissing('ictRequestItem');
+        abort_unless($assetHandover->ictRequestItem, 404);
 
-        $path = Storage::disk('public')->path($assetHandover->handover_report_path);
-        
-        if (!file_exists($path)) {
-            abort(404, 'File tidak ditemukan');
-        }
+        $pdf = Pdf::loadView('forms.ict-requests.handover-report', [
+            'handover' => $assetHandover,
+            'ictRequest' => $ictRequest,
+            'item' => $assetHandover->ictRequestItem,
+        ])->setPaper('a4', 'portrait');
 
-        return response()->download($path, $assetHandover->handover_report_name);
+        $fileName = $assetHandover->handover_report_name ?: 'serah-terima-fasilitas-ict-'.$assetHandover->id.'.pdf';
+
+        return $pdf->stream($fileName);
     }
 }

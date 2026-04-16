@@ -8,6 +8,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class IctRequest extends Model
 {
+    public const STATUS_LABELS = [
+        'drafted' => 'Draft Admin ICT',
+        'ttd_in_progress' => 'Validated Staff ICT',
+        'checked_by_asmen' => 'Validated Asmen ICT',
+        'progress_ppnk' => 'Progress PPNK',
+        'progress_verifikasi_audit' => 'Progress Verifikasi Audit',
+        'progress_ppm' => 'Progress PPM',
+        'progress_po' => 'Progress PO',
+        'progress_waiting_goods' => 'Progress Menunggu Barang Diterima',
+        'approved_by_manager' => 'Approved Manager ICT',
+        'completed' => 'Barang Sudah Diterima',
+        'needs_revision' => 'Perlu Revisi',
+        'rejected' => 'Rejected',
+    ];
+
     protected $fillable = [
         'unit_id',
         'requester_id',
@@ -130,20 +145,7 @@ class IctRequest extends Model
             return 'Progress TTD';
         }
 
-        return match ($this->status) {
-            'drafted' => 'Draft Admin ICT',
-            'ttd_in_progress' => 'Validated Staff ICT',
-            'checked_by_asmen' => 'Validated Asmen ICT',
-            'progress_ppnk' => 'Progress PPNK',
-            'progress_verifikasi_audit' => 'Progress Verifikasi Audit',
-            'progress_ppm' => 'Progress PPM',
-            'progress_po' => 'Progress PO',
-            'progress_waiting_goods' => 'Progress Menunggu Barang Diterima',
-            'approved_by_manager' => 'Approved Manager ICT',
-            'completed' => 'Barang Sudah Diterima',
-            'needs_revision' => 'Perlu Revisi',
-            'rejected' => 'Rejected',
-            default => str($this->status)->replace('_', ' ')->title()->toString(),
-        };
+        return self::STATUS_LABELS[$this->status]
+            ?? str($this->status)->replace('_', ' ')->title()->toString();
     }
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class IctRequestItem extends Model
 {
@@ -23,9 +24,16 @@ class IctRequestItem extends Model
         'photo_path',
         'photo_size',
         'ppnk_document_id',
+        'ppnk_uploaded_at',
+        'ppnk_number',
         'ppm_document_id',
+        'ppm_uploaded_at',
+        'ppm_name',
+        'ppm_number',
         'pr_number',
         'po_document_id',
+        'po_uploaded_at',
+        'po_number',
         'audit_status',
         'audit_reason',
     ];
@@ -36,6 +44,9 @@ class IctRequestItem extends Model
             'quantity' => 'integer',
             'takeout_qty' => 'integer',
             'estimated_price' => 'decimal:2',
+            'ppnk_uploaded_at' => 'datetime',
+            'ppm_uploaded_at' => 'datetime',
+            'po_uploaded_at' => 'datetime',
         ];
     }
 
@@ -62,5 +73,10 @@ class IctRequestItem extends Model
     public function poDocument(): BelongsTo
     {
         return $this->belongsTo(IctRequestPoDocument::class, 'po_document_id');
+    }
+
+    public function assetHandover(): HasOne
+    {
+        return $this->hasOne(AssetHandover::class);
     }
 }

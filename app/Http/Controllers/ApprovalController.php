@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EmailRequest;
 use App\Models\IctRequest;
 use App\Models\IctRequestReviewHistory;
+use App\Support\PublicFileUpload;
 use App\Support\UnitScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -293,67 +294,7 @@ class ApprovalController extends Controller
 
     protected function storeCompressedRevisionAttachment(UploadedFile $attachment): array
     {
-        $compressedImage = $this->compressRevisionImage($attachment);
-        $storedFileName = Str::uuid()->toString().'-'.Str::slug(pathinfo($attachment->getClientOriginalName(), PATHINFO_FILENAME) ?: 'revision').'.jpg';
-        $storedPath = 'ict-request-revisions/'.$storedFileName;
-
-        Storage::disk('public')->put($storedPath, $compressedImage);
-
-        return [
-            'name' => $storedFileName,
-            'path' => $storedPath,
-            'size' => Storage::disk('public')->size($storedPath),
-            'mime' => 'image/jpeg',
-        ];
-    }
-
-    protected function compressRevisionImage(UploadedFile $attachment): string
-    {
-        $source = @file_get_contents($attachment->getRealPath());
-
-        if ($source === false) {
-            abort(500, 'Gagal membaca gambar revisi.');
-        }
-
-        $image = @imagecreatefromstring($source);
-
-        if ($image === false) {
-            abort(500, 'Format gambar revisi tidak didukung.');
-        }
-
-        $width = imagesx($image);
-        $height = imagesy($image);
-        $maxDimension = 1920;
-
-        if ($width > $maxDimension || $height > $maxDimension) {
-            $scale = min($maxDimension / $width, $maxDimension / $height);
-            $targetWidth = max(1, (int) round($width * $scale));
-            $targetHeight = max(1, (int) round($height * $scale));
-
-            $resized = imagecreatetruecolor($targetWidth, $targetHeight);
-
-            if ($resized === false) {
-                imagedestroy($image);
-                abort(500, 'Gagal menyiapkan kompres gambar revisi.');
-            }
-
-            $background = imagecolorallocate($resized, 255, 255, 255);
-            imagefill($resized, 0, 0, $background);
-            imagecopyresampled($resized, $image, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
-            imagedestroy($image);
-            $image = $resized;
-        }
-
-        ob_start();
-        imagejpeg($image, null, 82);
-        $compressed = ob_get_clean();
-        imagedestroy($image);
-
-        if ($compressed === false || $compressed === '') {
-            abort(500, 'Gagal mengompres gambar revisi.');
-        }
-
-        return $compressed;
+        return PublicFileUpload::store($attachment, 'ict-request-revisions', 255, 'revision');
     }
 
     protected function deleteRevisionAttachment(IctRequest $ictRequest): void
