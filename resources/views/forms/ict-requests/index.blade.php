@@ -625,7 +625,7 @@
 	                        </tr>
 	                    </thead>
 	                    <tbody class="divide-y divide-ink-100">
-	                    @forelse ($requests as $request)
+	                    @foreach ($requests as $request)
 	                        <tr class="align-top">
                             <td class="px-4 py-3">
                                 <input type="checkbox" value="{{ $request->id }}" x-model="selectedIds" class="rounded border-ink-300 text-ink-900 focus:ring-ink-400" />
@@ -755,7 +755,7 @@
                                 </div>
                             </td>
                         </tr>
-                    @endforelse
+                    @endforeach
                     </tbody>
                 </table>
             </div>
