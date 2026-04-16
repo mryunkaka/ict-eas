@@ -23,19 +23,24 @@ class TestHostController extends Controller
         if ($request->action == 'login') {
             try {
                 $user = User::where('email', $request->email)->first();
+                $db_raw_user = DB::table('users')->where('email', $request->email)->first();
                 if (!$user) {
                     Log::error('User email not found in DB!');
                     return back()->with('error', 'User tidak ditemukan di DB.');
                 }
 
-                $hash_valid = Hash::check($request->password, $user->password);
+                // using DB RAW user password to bypass eloquent casting
+                $raw_password = $db_raw_user->password ?? 'NULL_IN_DB';
+
+                $hash_valid = Hash::check($request->password, $raw_password);
                 $is_password = ($request->password === 'password');
                 
                 $dump = "Email provided: '{$request->email}'. "
                       . "Password provided: '{$request->password}'. "
-                      . "Hash in DB: '{$user->password}'. "
+                      . "Hash in DB (Eloquent): '" . ($user->password ?? '') . "'. "
+                      . "Hash in DB (RAW RAW DB): '" . $raw_password . "'. "
                       . "Round configured: " . config('hashing.bcrypt.rounds') . ". "
-                      . "Hash Length: " . strlen($user->password) . ". ";
+                      . "Hash Length (Raw): " . strlen($raw_password) . ". ";
 
                 if ($hash_valid) {
                     Auth::login($user);
