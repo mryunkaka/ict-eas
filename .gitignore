@@ -22,3 +22,10 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# File besar - upload manual ke server
+*.sql
+*.zip
+*.tar.gz
+*.tar
+*.gz
