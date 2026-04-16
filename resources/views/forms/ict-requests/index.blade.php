@@ -597,7 +597,7 @@
 	            @endif
 
 	            <div class="overflow-x-auto">
-	                <table id="ict-requests-table" class="min-w-full divide-y divide-ink-100 text-sm">
+	                <table id="ict-requests-table" class="min-w-full w-max divide-y divide-ink-100 text-sm">
 	                    <thead class="bg-ink-50 text-left text-ink-500">
 	                        <tr>
 	                            <th class="px-4 py-3">
@@ -606,19 +606,19 @@
 	                                    <span class="sr-only">Pilih semua</span>
 	                                </label>
 	                            </th>
-	                            <th class="px-4 py-3">
+	                            <th class="px-4 py-3 whitespace-nowrap">
 	                                <x-sort-link column="created_at" label="Tanggal" :sort="$sort" :direction="$direction" />
 	                            </th>
-	                            <th class="px-4 py-3">
+	                            <th class="px-4 py-3 whitespace-nowrap">
 	                                <x-sort-link column="subject" label="Subject" :sort="$sort" :direction="$direction" />
 	                            </th>
-	                            <th class="px-4 py-3">Pemohon</th>
-	                            <th class="px-4 py-3">Dept</th>
+	                            <th class="px-4 py-3 whitespace-nowrap">Pemohon</th>
+	                            <th class="px-4 py-3 whitespace-nowrap">Dept</th>
 	                            <th class="px-4 py-3">
 	                                <x-sort-link column="priority" label="Prioritas" :sort="$sort" :direction="$direction" />
 	                            </th>
 	                            <th class="px-4 py-3">Alasan kebutuhan</th>
-	                            <th class="px-4 py-3">
+	                            <th class="px-4 py-3 whitespace-nowrap">
 	                                <x-sort-link column="status" label="Status" :sort="$sort" :direction="$direction" />
 	                            </th>
 	                            <th class="px-4 py-3 text-right">Aksi</th>
@@ -630,9 +630,9 @@
                             <td class="px-4 py-3">
                                 <input type="checkbox" value="{{ $request->id }}" x-model="selectedIds" class="rounded border-ink-300 text-ink-900 focus:ring-ink-400" />
                             </td>
-                            <td class="px-4 py-3">{{ $request->created_at?->format('d M Y') }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">{{ $request->created_at?->format('d M Y') }}</td>
                             <td class="px-4 py-3">
-                                <div class="font-semibold text-ink-900">{{ $request->subject }}</div>
+                                <div class="font-semibold text-ink-900 whitespace-nowrap">{{ $request->subject }}</div>
                                 @if ($request->rejected_reason || $request->revision_note)
                                     <div class="mt-3 space-y-2 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-ink-700">
                                         @if ($request->rejected_reason)
@@ -659,11 +659,11 @@
                                     </a>
                                 @endif
                             </td>
-                            <td class="px-4 py-3">{{ $request->requesterDisplayName() }}</td>
-                            <td class="px-4 py-3">{{ $request->departmentDisplayName() }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">{{ $request->requesterDisplayName() }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">{{ $request->departmentDisplayName() }}</td>
                             <td class="px-4 py-3"><x-badge variant="{{ $request->priority === 'urgent' ? 'warning' : 'default' }}">{{ strtoupper($request->priority) }}</x-badge></td>
                             <td class="px-4 py-3">{{ \Illuminate\Support\Str::limit($request->justification, 140) }}</td>
-                            <td class="px-4 py-3"><x-badge variant="{{ in_array($request->status, ['progress_ppnk'], true) || ($request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path) ? 'warning' : 'success' }}">{{ $request->statusLabel() }}</x-badge></td>
+                            <td class="px-4 py-3 whitespace-nowrap"><x-badge variant="{{ in_array($request->status, ['progress_ppnk'], true) || ($request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path) ? 'warning' : 'success' }}">{{ $request->statusLabel() }}</x-badge></td>
                             <td class="px-4 py-3">
                                 <div class="ui-action-row justify-end">
                                     <x-button type="button" variant="action-neutral" x-on:click="openDetail('{{ $request->id }}')" title="Lihat detail">
