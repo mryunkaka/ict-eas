@@ -398,6 +398,18 @@
         @apply inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white/80;
     }
 
+    .ui-data-shell {
+        @apply overflow-hidden rounded-3xl border border-ink-100 bg-white/90 shadow-[0_20px_50px_-30px_rgba(17,32,51,0.35)];
+    }
+
+    .ui-modal-backdrop {
+        background: rgba(15, 23, 42, 0.42);
+    }
+
+    .ui-modal-panel {
+        @apply rounded-[2rem] border border-ink-100 bg-white p-6 shadow-[0_25px_80px_rgba(15,23,42,0.18)];
+    }
+
     /* =====================================================
      * DataTables — Core resets (gantikan CSS bawaan DT)
      * ===================================================== */
@@ -491,6 +503,38 @@
         border-color: #9f2431;
         background: #fff;
         box-shadow: 0 0 0 3px rgba(159, 36, 49, 0.12);
+    }
+
+    #monitoring-pp-table_wrapper .dt-layout-row {
+        margin: 0;
+    }
+
+    #monitoring-pp-table_wrapper .dt-layout-table {
+        overflow-x: auto;
+    }
+
+    #monitoring-pp-table {
+        width: 100% !important;
+    }
+
+    #monitoring-pp-table thead th {
+        white-space: nowrap;
+    }
+
+    #monitoring-pp-table tbody td {
+        vertical-align: top;
+    }
+
+    #monitoring-pp-table_wrapper .dt-input,
+    #monitoring-pp-table_wrapper .dt-length select {
+        border-radius: 1rem;
+        border: 1px solid #d8dee8;
+        padding: 0.55rem 0.85rem;
+        font-size: 0.875rem;
+    }
+
+    #monitoring-pp-table_wrapper .dt-paging-button {
+        border-radius: 9999px !important;
     }
 
     /* =====================================================
@@ -587,4 +631,3 @@
         pointer-events: none !important;
     }
 }
-

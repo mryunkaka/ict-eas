@@ -1,128 +1,97 @@
 <x-app-layout>
     @push('styles')
         <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
-        <style>
-            #monitoring-pp-table_wrapper .dt-layout-row {
-                margin: 0;
-            }
-
-            #monitoring-pp-table_wrapper .dt-layout-table {
-                overflow-x: auto;
-            }
-
-            #monitoring-pp-table {
-                width: 100% !important;
-            }
-
-            #monitoring-pp-table thead th {
-                white-space: nowrap;
-            }
-
-            #monitoring-pp-table tbody td {
-                vertical-align: top;
-            }
-
-            #monitoring-pp-table_wrapper .dt-input,
-            #monitoring-pp-table_wrapper .dt-length select {
-                border-radius: 1rem;
-                border: 1px solid #d8dee8;
-                padding: 0.55rem 0.85rem;
-                font-size: 0.875rem;
-            }
-
-            #monitoring-pp-table_wrapper .dt-paging-button {
-                border-radius: 9999px !important;
-            }
-
-            .monitoring-modal-backdrop {
-                background: rgba(15, 23, 42, 0.42);
-            }
-        </style>
     @endpush
 
     <div class="space-y-6">
-        <form id="monitoring-pp-filters" class="grid gap-4 md:grid-cols-4 xl:grid-cols-7">
-            @if ($canFilterAllUnits)
-                <x-select
-                    name="unit_id"
-                    label="Unit"
-                    :value="$selectedUnitId"
-                    :options="$units"
-                    placeholder="Semua Unit"
-                />
-            @endif
-            <x-input name="from" type="date" label="Tanggal Form Dari" :value="request('from')" />
-            <x-input name="until" type="date" label="Tanggal Form Sampai" :value="request('until')" />
-            <div class="flex flex-wrap items-end gap-3 md:col-span-2 xl:col-span-4">
-                <x-button type="button" id="apply-monitoring-pp-filter">Filter</x-button>
-                <x-button :href="route('reports.monitoring-pp')" variant="secondary">Reset</x-button>
-                <x-button type="button" id="export-monitoring-pp-excel" variant="secondary">Export Excel</x-button>
-                <x-button :href="route('reports.monitoring-pp.example-import')" variant="secondary">Download Example Import</x-button>
-                @if ($canBulkDeleteMonitoringPp)
-                    <x-button type="button" id="bulk-delete-monitoring-pp" variant="danger" disabled>Bulk Delete</x-button>
+        <x-card>
+            <form id="monitoring-pp-filters" class="grid gap-4 md:grid-cols-4 xl:grid-cols-7">
+                @if ($canFilterAllUnits)
+                    <x-select
+                        name="unit_id"
+                        label="Unit"
+                        :value="$selectedUnitId"
+                        :options="$units"
+                        placeholder="Semua Unit"
+                    />
                 @endif
-                <x-button :href="route('reports.index')" variant="secondary">Kembali ke Report</x-button>
-            </div>
-        </form>
-
-        @if ($canImportMonitoringPp)
-            <form method="POST" action="{{ route('reports.monitoring-pp.import-excel') }}" enctype="multipart/form-data" class="grid gap-4 rounded-[2rem] border border-ink-100 bg-white p-5 md:grid-cols-[minmax(0,1fr)_auto] shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
-                @csrf
-                <x-input name="import_file" type="file" label="Import Excel Monitoring PP" accept=".xlsx,.xls,.csv" />
-                <div class="flex items-end">
-                    <x-button type="submit">Import Excel</x-button>
+                <x-input name="from" type="date" label="Tanggal Form Dari" :value="request('from')" />
+                <x-input name="until" type="date" label="Tanggal Form Sampai" :value="request('until')" />
+                <div class="flex flex-wrap items-end gap-3 md:col-span-2 xl:col-span-4">
+                    <x-button type="button" id="apply-monitoring-pp-filter">Filter</x-button>
+                    <x-button :href="route('reports.monitoring-pp')" variant="secondary">Reset</x-button>
+                    <x-button type="button" id="export-monitoring-pp-excel" variant="secondary">Export Excel</x-button>
+                    <x-button :href="route('reports.monitoring-pp.example-import')" variant="secondary">Download Example Import</x-button>
+                    @if ($canBulkDeleteMonitoringPp)
+                        <x-button type="button" id="bulk-delete-monitoring-pp" variant="danger" disabled>Bulk Delete</x-button>
+                    @endif
+                    <x-button :href="route('reports.index')" variant="secondary">Kembali ke Report</x-button>
                 </div>
             </form>
+        </x-card>
+
+        @if ($canImportMonitoringPp)
+            <x-card title="Import Monitoring PP" subtitle="Upload file Excel untuk sinkronisasi data procurement">
+                <form method="POST" action="{{ route('reports.monitoring-pp.import-excel') }}" enctype="multipart/form-data" class="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
+                    @csrf
+                    <x-input name="import_file" type="file" label="Import Excel Monitoring PP" accept=".xlsx,.xls,.csv" />
+                    <div class="flex items-end">
+                        <x-button type="submit">Import Excel</x-button>
+                    </div>
+                </form>
+            </x-card>
         @endif
 
-        <div class="overflow-hidden rounded-[2rem] border border-ink-100 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
-            <table id="monitoring-pp-table" class="display text-sm">
-                <thead>
-                    <tr>
-                        @if ($canBulkDeleteMonitoringPp)
-                            <th>
-                                <input type="checkbox" id="monitoring-pp-check-all" class="rounded border-ink-300 text-brand-700 focus:ring-brand-500" />
-                            </th>
-                        @endif
-                        <th>No</th>
-                        <th>Unit</th>
-                        <th>Jenis Barang</th>
-                        <th>Nama Barang</th>
-                        <th>Merk</th>
-                        <th>Jumlah</th>
-                        <th>Harga</th>
-                        <th>Total</th>
-                        <th>Keterangan</th>
-                        <th>Gambar Barang</th>
-                        <th>Tanggal Form ICT</th>
-                        <th>Form ICT</th>
-                        <th>Tanggal PPNK/PPK</th>
-                        <th>Berkas PPNK/PPK</th>
-                        <th>No PPNK/PPK</th>
-                        <th>Tanggal PPM/PR</th>
-                        <th>Berkas PPM</th>
-                        <th>Nama PPM</th>
-                        <th>No PPM</th>
-                        <th>No PR</th>
-                        <th>Tanggal PO</th>
-                        <th>Berkas PO</th>
-                        <th>No PO</th>
-                        <th>Tanggal Diterima</th>
-                        <th>Tanggal Pembuatan BA</th>
-                        <th>BA Serah Terima</th>
-                        <th>Model/Spesifikasi</th>
-                        <th>Serial Number</th>
-                        <th>No Asset</th>
-                        <th>Pemakai</th>
-                        <th>Jabatan</th>
-                        <th>Atasan Pemakai</th>
-                        <th>Jabatan Atasan</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
+        <x-card title="Data Monitoring PP" subtitle="Tampilan monitoring procurement mengikuti pola visual modul Permintaan ICT">
+            <div class="ui-data-shell">
+                <table id="monitoring-pp-table" class="display w-full text-sm">
+                    <thead>
+                        <tr>
+                            @if ($canBulkDeleteMonitoringPp)
+                                <th>
+                                    <input type="checkbox" id="monitoring-pp-check-all" class="rounded border-ink-300 text-brand-700 focus:ring-brand-500" />
+                                </th>
+                            @endif
+                            <th>No</th>
+                            <th>Unit</th>
+                            <th>Jenis Barang</th>
+                            <th>Nama Barang</th>
+                            <th>Merk</th>
+                            <th>Jumlah</th>
+                            <th>Harga</th>
+                            <th>Total</th>
+                            <th>Keterangan</th>
+                            <th>Gambar Barang</th>
+                            <th>Tanggal Form ICT</th>
+                            <th>Form ICT</th>
+                            <th>Tanggal PPNK/PPK</th>
+                            <th>Berkas PPNK/PPK</th>
+                            <th>No PPNK/PPK</th>
+                            <th>Tanggal PPM/PR</th>
+                            <th>Berkas PPM</th>
+                            <th>Nama PPM</th>
+                            <th>No PPM</th>
+                            <th>No PR</th>
+                            <th>Tanggal PO</th>
+                            <th>Berkas PO</th>
+                            <th>No PO</th>
+                            <th>Tanggal Diterima</th>
+                            <th>Tanggal Pembuatan BA</th>
+                            <th>BA Serah Terima</th>
+                            <th>Model/Spesifikasi</th>
+                            <th>Serial Number</th>
+                            <th>No Asset</th>
+                            <th>Pemakai</th>
+                            <th>Jabatan</th>
+                            <th>Atasan Pemakai</th>
+                            <th>Jabatan Atasan</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </x-card>
     </div>
 
     @if ($canBulkDeleteMonitoringPp)
@@ -134,8 +103,8 @@
 
     @if ($canManageMonitoringPpUploads)
         <div id="monitoring-pp-upload-modal" class="fixed inset-0 z-50 hidden items-center justify-center px-4 py-6">
-            <div class="monitoring-modal-backdrop absolute inset-0"></div>
-            <div class="relative z-10 w-full max-w-2xl rounded-[2rem] border border-ink-100 bg-white p-6 shadow-[0_25px_80px_rgba(15,23,42,0.18)]">
+            <div class="ui-modal-backdrop absolute inset-0"></div>
+            <div class="ui-modal-panel relative z-10 w-full max-w-2xl">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <h2 id="monitoring-pp-upload-title" class="text-xl font-semibold text-ink-900">Upload Dokumen</h2>
