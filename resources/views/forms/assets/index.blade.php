@@ -42,8 +42,6 @@
                             </div>
                         </td>
                     </tr>
-                @empty
-                    <tr><td colspan="5" class="px-4 py-6 text-center text-ink-500">Belum ada asset.</td></tr>
                 @endforelse
             </tbody>
         </x-table>

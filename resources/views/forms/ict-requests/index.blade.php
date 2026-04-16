@@ -755,8 +755,6 @@
                                 </div>
                             </td>
                         </tr>
-	                    @empty
-	                        <tr><td colspan="9" class="px-4 py-6 text-center text-ink-500">Belum ada data.</td></tr>
 	                    @endforelse
 	                    </tbody>
 	                </table>
