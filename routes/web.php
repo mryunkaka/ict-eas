@@ -7,6 +7,13 @@ Route::get('/init-storage', function() {
     Artisan::call('storage:link');
     return 'Storage link created successfully!';
 });
+
+Route::get('/clear-cache', function() {
+    Artisan::call('view:clear');
+    Artisan::call('cache:clear');
+    Artisan::call('config:clear');
+    return 'Cache cleared successfully! View cache, app cache, dan config cache sudah dibersihkan.';
+});
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Form\AssetController;
