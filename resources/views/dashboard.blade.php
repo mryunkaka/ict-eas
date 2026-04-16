@@ -2,7 +2,7 @@
     <div class="space-y-8">
         <x-card class="ui-dashboard-hero">
             <div class="space-y-4">
-                <x-badge variant="success">SOP-driven workspace</x-badge>
+                <x-badge variant="success">SOP-driven workspace ts</x-badge>
                 <div class="space-y-3">
                     <h1 class="font-display text-3xl font-bold text-white sm:text-4xl">Dashboard ICT EAS</h1>
                     <p class="max-w-3xl text-sm leading-7 text-white/78 sm:text-base">Modul mengikuti SOP email, internet, disposal hardware, standar asset, CCTV jembatan timbang, dan format FMR-ICT.</p>
