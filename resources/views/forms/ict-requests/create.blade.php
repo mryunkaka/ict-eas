@@ -66,11 +66,11 @@
                         <h3 class="font-display text-sm font-semibold text-ink-700">Informasi Pemohon</h3>
                         <p class="text-xs text-ink-500 mt-0.5">Nama pengguna, departemen, tanggal, dan subjek dapat disesuaikan manual.</p>
                     </div>
-                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                         <x-input name="requester_name" label="Pengguna" :value="$requesterName" />
                         <x-input name="department_name" label="Departemen" :value="$departmentName" />
                         <x-input name="needed_at" type="date" label="Tanggal" :value="$neededAt" />
-                        <div class="space-y-1.5 md:col-span-2 xl:col-span-1">
+                        <div class="space-y-1.5">
                             <label for="subject" class="text-sm font-medium text-ink-700">
                                 Subjek Form
                                 <span class="ml-1 text-xs font-normal text-ink-400">(auto-generate, bisa diedit)</span>
