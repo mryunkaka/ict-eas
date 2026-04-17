@@ -12,21 +12,31 @@
     --color-ink-50: #f6f8fb;
     --color-ink-100: #e8edf4;
     --color-ink-200: #d4dde8;
+    --color-ink-300: #b6c4d6;
+    --color-ink-400: #7c93af;
     --color-ink-500: #58708f;
+    --color-ink-600: #415873;
     --color-ink-700: #30445e;
+    --color-ink-800: #1e3048;
     --color-ink-900: #112033;
 
     --color-brand-50: #fbefef;
     --color-brand-100: #f5d9da;
+    --color-brand-200: #ecb7bb;
     --color-brand-500: #9f2431;
+    --color-brand-600: #861d29;
     --color-brand-700: #6f1721;
+    --color-brand-800: #571119;
 
     --color-accent-100: #fff1cc;
     --color-accent-500: #d99100;
     --color-success-500: #0f9f7f;
     --color-success-700: #0a7c63;
+    --color-danger-50: #fff3f1;
     --color-danger-100: #fde1df;
+    --color-danger-200: #f6b9b4;
     --color-danger-500: #d65245;
+    --color-danger-600: #bb4135;
 }
 
 @layer base {
