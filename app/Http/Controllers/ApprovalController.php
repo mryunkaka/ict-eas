@@ -10,6 +10,7 @@ use App\Support\UnitScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -64,6 +65,7 @@ class ApprovalController extends Controller
         $validated = $request->validate([
             'action' => ['required', 'in:approve,reject,revise,upload_signed_pdf'],
             'signed_pdf' => ['nullable', 'required_if:action,upload_signed_pdf', 'file', 'mimes:pdf', 'max:10240'],
+            'signed_date' => ['nullable', 'required_if:action,upload_signed_pdf', 'date'],
             'review_note' => ['nullable', 'string'],
             'revision_attachment' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
@@ -174,7 +176,9 @@ class ApprovalController extends Controller
                 'final_signed_pdf_name' => $signedPdfName,
                 'final_signed_pdf_path' => $signedPdfPath,
                 'final_signed_pdf_uploaded_by' => $user->id,
-                'final_signed_pdf_uploaded_at' => now(),
+                'final_signed_pdf_uploaded_at' => isset($validated['signed_date'])
+                    ? Carbon::parse($validated['signed_date'])->startOfDay()
+                    : now(),
             ]);
 
             return back()->with('status', 'PDF TTD lengkap berhasil diunggah. Lanjutkan upload data PPNK per barang.');

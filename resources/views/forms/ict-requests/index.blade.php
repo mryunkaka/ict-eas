@@ -202,6 +202,32 @@
                         window.location.reload();
                     }, 300);
                 },
+                signedPdfTarget: null,
+                signedPdfDate: '',
+                getTodayDate() {
+                    return new Date().toISOString().slice(0, 10);
+                },
+                openSignedPdfModal(id) {
+                    const targetId = String(id);
+                    this.signedPdfTarget = targetId;
+                    this.signedPdfDate = this.getTodayDate();
+                    this.$nextTick(() => {
+                        if (!this.$refs.signedPdfForm) return;
+                        this.$refs.signedPdfForm.action = this.detailMap[targetId]?.upload_signed_url ?? '';
+                    });
+                },
+                closeSignedPdfModal() {
+                    this.signedPdfTarget = null;
+                    this.signedPdfDate = '';
+                    if (this.$refs.signedPdfForm) {
+                        this.$refs.signedPdfForm.reset();
+                    }
+                },
+                submitSignedPdfForm() {
+                    if (!this.signedPdfTarget || !this.$refs.signedPdfForm) return;
+                    if (!this.$refs.signedPdfForm.reportValidity()) return;
+                    this.$refs.signedPdfForm.submit();
+                },
                 openPpnkModal(id) {
                     const targetId = String(id);
                     this.ppnkTarget = targetId;
@@ -488,6 +514,12 @@
                 return;
             }
 
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 900;
+            const tableTop = tableElement.getBoundingClientRect().top || 0;
+            // Sisakan ruang untuk toolbar datatable + pagination agar tetap terlihat.
+            const reservedBottomSpace = 190;
+            const tableScrollHeight = Math.max(220, viewportHeight - tableTop - reservedBottomSpace);
+
             new window.DataTable(tableElement, {
                 paging: true,
                 searching: true,
@@ -496,7 +528,7 @@
                 lengthChange: false,
                 pageLength: 10,
                 scrollX: true,
-                scrollY: '50vh',
+                scrollY: `${tableScrollHeight}px`,
                 scrollCollapse: true,
                 language: {
                     search: '',
@@ -523,33 +555,7 @@
 
         <x-card padding="none" class="ui-page-workspace-card">
             <div class="ui-page-toolbar">
-                <form method="GET" class="ui-page-toolbar-form">
-                    <x-input name="from" label="Dari" type="date" :value="$filters['from']" size="compact" />
-                    <x-input name="until" label="Sampai" type="date" :value="$filters['until']" size="compact" />
-
-                    <div class="flex items-end gap-2">
-                        <x-button type="submit" size="compact">
-                            Terapkan
-                        </x-button>
-                        <x-button :href="route('forms.ict-requests.index')" variant="secondary" size="compact">
-                            <x-heroicon-o-arrow-path class="mr-2 h-4 w-4" />
-                            Reset
-                        </x-button>
-                    </div>
-                </form>
-
-                <div class="ui-page-toolbar-actions">
-                    <x-button :href="route('forms.ict-requests.export', request()->query())" variant="secondary" size="compact">
-                        <x-heroicon-o-arrow-down-tray class="mr-2 h-4 w-4" />
-                        Export Excel
-                    </x-button>
-                    @if (auth()->user()->canCreateIctRequest())
-                        <x-button :href="route('forms.ict-requests.create')" size="compact">
-                            <x-heroicon-o-plus class="mr-2 h-4 w-4" />
-                            Buat Permintaan
-                        </x-button>
-                    @endif
-                </div>
+                <form id="ict-requests-filter-form" method="GET" class="hidden"></form>
             </div>
 
             <div class="ui-page-table-content">
@@ -568,10 +574,35 @@
 	                    </template>
 
 	                    <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-700" x-cloak x-show="selectedIds.length > 0 || selectAllMatching">
-	                        <button type="submit" class="ui-page-danger-button">
-	                            <x-heroicon-o-trash class="mr-2 h-4 w-4" />
-	                            Delete selected
-	                        </button>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <label class="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-600">
+                                    <span>Dari</span>
+                                    <input type="date" name="from" form="ict-requests-filter-form" value="{{ $filters['from'] }}" class="h-7 w-[118px] rounded-lg border border-ink-200 bg-white px-2 text-[11px] text-ink-900 outline-none transition focus:border-brand-500" />
+                                </label>
+                                <label class="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-600">
+                                    <span>Sampai</span>
+                                    <input type="date" name="until" form="ict-requests-filter-form" value="{{ $filters['until'] }}" class="h-7 w-[118px] rounded-lg border border-ink-200 bg-white px-2 text-[11px] text-ink-900 outline-none transition focus:border-brand-500" />
+                                </label>
+                                <x-button type="submit" form="ict-requests-filter-form" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                    Terapkan
+                                </x-button>
+                                <x-button :href="route('forms.ict-requests.index')" variant="secondary" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                    <x-heroicon-o-arrow-path class="mr-1.5 h-3.5 w-3.5" />
+                                    Reset
+                                </x-button>
+	                            <button type="submit" class="ui-page-danger-button !px-2.5 !py-1 !text-[11px]">
+	                                <x-heroicon-o-trash class="mr-1.5 h-3.5 w-3.5" />
+	                                Delete selected
+	                            </button>
+                                <x-button :href="route('forms.ict-requests.export', request()->query())" variant="secondary" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                    <x-heroicon-o-arrow-down-tray class="mr-1.5 h-3.5 w-3.5" />
+                                    Export Excel
+                                </x-button>
+                                <x-button :href="route('forms.ict-requests.create')" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                    <x-heroicon-o-plus class="mr-1.5 h-3.5 w-3.5" />
+                                    Buat Permintaan
+                                </x-button>
+                            </div>
 
 	                        <div class="flex flex-wrap items-center gap-4">
 	                            <span class="text-ink-600" x-text="selectAllMatching ? `${totalMatching} records selected` : `${selectedIds.length} records selected`"></span>
@@ -587,13 +618,65 @@
 	                        </div>
 	                    </div>
 
-	                    <div class="ui-page-record-count" x-cloak x-show="selectedIds.length === 0 && !selectAllMatching">
-	                        Total {{ $requests->count() }} data
+	                    <div class="flex flex-wrap items-center justify-between gap-3" x-cloak x-show="selectedIds.length === 0 && !selectAllMatching">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <label class="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-600">
+                                    <span>Dari</span>
+                                    <input type="date" name="from" form="ict-requests-filter-form" value="{{ $filters['from'] }}" class="h-7 w-[118px] rounded-lg border border-ink-200 bg-white px-2 text-[11px] text-ink-900 outline-none transition focus:border-brand-500" />
+                                </label>
+                                <label class="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-600">
+                                    <span>Sampai</span>
+                                    <input type="date" name="until" form="ict-requests-filter-form" value="{{ $filters['until'] }}" class="h-7 w-[118px] rounded-lg border border-ink-200 bg-white px-2 text-[11px] text-ink-900 outline-none transition focus:border-brand-500" />
+                                </label>
+                                <x-button type="submit" form="ict-requests-filter-form" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                    Terapkan
+                                </x-button>
+                                <x-button :href="route('forms.ict-requests.index')" variant="secondary" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                    <x-heroicon-o-arrow-path class="mr-1.5 h-3.5 w-3.5" />
+                                    Reset
+                                </x-button>
+                                <div class="ui-page-record-count">
+	                                Total {{ $requests->count() }} data
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <x-button :href="route('forms.ict-requests.export', request()->query())" variant="secondary" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                    <x-heroicon-o-arrow-down-tray class="mr-1.5 h-3.5 w-3.5" />
+                                    Export Excel
+                                </x-button>
+                                <x-button :href="route('forms.ict-requests.create')" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                    <x-heroicon-o-plus class="mr-1.5 h-3.5 w-3.5" />
+                                    Buat Permintaan
+                                </x-button>
+                            </div>
 	                    </div>
 	                </form>
 	            @else
 	                <div class="ui-page-section-bar ui-page-record-count">
-	                    Total {{ $requests->count() }} data
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <label class="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-600">
+                                    <span>Dari</span>
+                                    <input type="date" name="from" form="ict-requests-filter-form" value="{{ $filters['from'] }}" class="h-7 w-[118px] rounded-lg border border-ink-200 bg-white px-2 text-[11px] text-ink-900 outline-none transition focus:border-brand-500" />
+                                </label>
+                                <label class="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-600">
+                                    <span>Sampai</span>
+                                    <input type="date" name="until" form="ict-requests-filter-form" value="{{ $filters['until'] }}" class="h-7 w-[118px] rounded-lg border border-ink-200 bg-white px-2 text-[11px] text-ink-900 outline-none transition focus:border-brand-500" />
+                                </label>
+                                <x-button type="submit" form="ict-requests-filter-form" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                    Terapkan
+                                </x-button>
+                                <x-button :href="route('forms.ict-requests.index')" variant="secondary" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                    <x-heroicon-o-arrow-path class="mr-1.5 h-3.5 w-3.5" />
+                                    Reset
+                                </x-button>
+                                <span>Total {{ $requests->count() }} data</span>
+                            </div>
+                            <x-button :href="route('forms.ict-requests.export', request()->query())" variant="secondary" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                                <x-heroicon-o-arrow-down-tray class="mr-1.5 h-3.5 w-3.5" />
+                                Export Excel
+                            </x-button>
+                        </div>
 	                </div>
 	            @endif
 
@@ -684,23 +767,10 @@
                                     @endif
 
                                     @if ($request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && auth()->user()->isIctAdmin() && ! $request->final_signed_pdf_path)
-                                        <form method="POST" action="{{ route('approvals.ict.update', $request) }}" enctype="multipart/form-data" class="shrink-0">
-                                            @csrf
-                                            <input type="hidden" name="action" value="upload_signed_pdf">
-                                            <input
-                                                id="signed-list-pdf-{{ $request->id }}"
-                                                type="file"
-                                                name="signed_pdf"
-                                                accept="application/pdf"
-                                                class="sr-only"
-                                                required
-                                                onchange="if (this.files.length) { this.form.submit(); }"
-                                            />
-                                            <label for="signed-list-pdf-{{ $request->id }}" class="ui-action-button ui-action-button--upload cursor-pointer" title="Upload Form ICT Full TTD">
+                                        <button type="button" x-on:click="openSignedPdfModal('{{ $request->id }}')" class="ui-action-button ui-action-button--upload" title="Upload Form ICT Full TTD">
                                                 <x-heroicon-o-arrow-up-tray class="ui-action-icon" />
                                                 <span class="sr-only">Upload Form ICT Full TTD</span>
-                                            </label>
-                                        </form>
+                                        </button>
                                     @endif
 
                                     @if ($request->status === 'progress_ppnk' && auth()->user()->isIctAdmin())
@@ -1101,6 +1171,59 @@
                     <x-button type="button" variant="secondary" x-on:click="closePrintModal()">Batal</x-button>
                     <x-button type="button" x-on:click="submitPrint()">Print</x-button>
                 </div>
+            </div>
+        </div>
+
+        <div
+            x-show="signedPdfTarget"
+            x-cloak
+            x-transition.opacity.duration.200ms
+            x-on:keydown.escape.window="closeSignedPdfModal()"
+            class="fixed inset-0 z-[70] flex items-center justify-center bg-ink-900/50 p-4"
+        >
+            <div class="w-full max-w-lg rounded-3xl bg-white shadow-2xl">
+                <div class="flex items-start justify-between gap-4 border-b border-ink-100 px-5 py-4">
+                    <div>
+                        <h3 class="font-display text-lg font-semibold text-ink-900">Upload Form ICT Full TTD</h3>
+                        <p class="mt-1 text-sm text-ink-500" x-text="detailMap[signedPdfTarget]?.subject || ''"></p>
+                    </div>
+                    <button type="button" x-on:click="closeSignedPdfModal()" class="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-ink-200 text-ink-600 transition hover:bg-ink-50">
+                        <x-heroicon-o-x-mark class="h-4 w-4" />
+                    </button>
+                </div>
+
+                <form x-ref="signedPdfForm" method="POST" enctype="multipart/form-data" x-on:submit.prevent="submitSignedPdfForm()" class="space-y-4 px-5 py-4">
+                    @csrf
+                    <input type="hidden" name="action" value="upload_signed_pdf">
+
+                    <label class="block space-y-2">
+                        <span class="text-sm font-medium text-ink-700">Tanggal Upload</span>
+                        <input
+                            type="date"
+                            name="signed_date"
+                            x-model="signedPdfDate"
+                            required
+                            class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                        />
+                    </label>
+
+                    <label class="block space-y-2">
+                        <span class="text-sm font-medium text-ink-700">Attach File</span>
+                        <input
+                            type="file"
+                            name="signed_pdf"
+                            accept="application/pdf"
+                            required
+                            class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition file:mr-4 file:rounded-xl file:border-0 file:bg-ink-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
+                        />
+                        <p class="text-xs text-ink-500">Format file wajib PDF.</p>
+                    </label>
+
+                    <div class="flex justify-end gap-2 border-t border-ink-100 pt-4">
+                        <x-button type="button" variant="secondary" x-on:click="closeSignedPdfModal()">Batal</x-button>
+                        <x-button type="submit">Upload</x-button>
+                    </div>
+                </form>
             </div>
         </div>
 

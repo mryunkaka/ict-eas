@@ -505,7 +505,7 @@
     }
 
     .ui-datatable-shell .dt-scroll-body {
-        @apply flex-1 min-h-0 border-b border-ink-100/50 !overflow-auto;
+        @apply flex-1 min-h-0 border-b border-ink-100/50 !overflow-x-auto !overflow-y-scroll;
     }
 
     /* Datatables Scroll Styles */
