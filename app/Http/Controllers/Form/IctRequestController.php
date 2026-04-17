@@ -393,6 +393,8 @@ class IctRequestController extends Controller
             'items.*.item_id' => ['required', 'integer'],
             'items.*.ppnk_number' => ['required', 'string', 'max:255'],
             'items.*.ppnk_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'items.*.ppnk_temp_path' => ['nullable', 'string', 'max:255'],
+            'items.*.ppnk_temp_original_name' => ['nullable', 'string', 'max:255'],
         ]);
         $ppnkDate = Carbon::parse($validated['ppnk_date'])->startOfDay();
 
@@ -403,6 +405,8 @@ class IctRequestController extends Controller
                 'item_id' => (int) $item['item_id'],
                 'ppnk_number' => trim((string) $item['ppnk_number']),
                 'ppnk_attachment' => $item['ppnk_attachment'] ?? null,
+                'ppnk_temp_path' => (string) ($item['ppnk_temp_path'] ?? ''),
+                'ppnk_temp_original_name' => (string) ($item['ppnk_temp_original_name'] ?? ''),
             ]);
 
         $itemsById = $ictRequest->items->keyBy('id');
@@ -415,9 +419,11 @@ class IctRequestController extends Controller
 
         foreach ($rows->groupBy('ppnk_number') as $ppnkNumber => $numberRows) {
             $uploadedFile = collect($numberRows)->pluck('ppnk_attachment')->first(fn ($file) => $file instanceof UploadedFile);
+            $tempMeta = collect($numberRows)
+                ->first(fn ($row) => ! empty($row['ppnk_temp_path']) && ! empty($row['ppnk_temp_original_name']));
             $document = $documentsByNumber->get($ppnkNumber);
 
-            if (! $document && ! ($uploadedFile instanceof UploadedFile)) {
+            if (! $document && ! ($uploadedFile instanceof UploadedFile) && ! $tempMeta) {
                 return back()
                     ->withErrors(['items' => "File PPNK/PPK untuk nomor {$ppnkNumber} wajib diupload minimal sekali."])
                     ->withInput();
@@ -429,6 +435,38 @@ class IctRequestController extends Controller
                 }
 
                 $stored = $this->storePpnkAttachment($uploadedFile);
+
+                $document = IctRequestPpnkDocument::updateOrCreate(
+                    [
+                        'ict_request_id' => $ictRequest->id,
+                        'ppnk_number' => $ppnkNumber,
+                    ],
+                    [
+                        'attachment_name' => $stored['name'],
+                        'attachment_path' => $stored['path'],
+                        'attachment_size' => $stored['size'],
+                        'attachment_mime' => $stored['mime'],
+                        'uploaded_by' => $request->user()->id,
+                        'uploaded_at' => $ppnkDate,
+                    ]
+                );
+            } elseif ($tempMeta) {
+                if ($document && $document->attachment_path) {
+                    Storage::disk('public')->delete($document->attachment_path);
+                }
+
+                $stored = PublicFileUpload::finalizeTempToStableOrReuse(
+                    (string) $tempMeta['ppnk_temp_path'],
+                    (string) $tempMeta['ppnk_temp_original_name'],
+                    'ict-request-ppnk',
+                    255
+                );
+
+                if (! $stored) {
+                    return back()
+                        ->withErrors(['items' => "File temp PPNK/PPK untuk nomor {$ppnkNumber} tidak ditemukan. Upload ulang file lalu simpan lagi."])
+                        ->withInput();
+                }
 
                 $document = IctRequestPpnkDocument::updateOrCreate(
                     [
@@ -560,6 +598,8 @@ class IctRequestController extends Controller
             'items.*.ppm_number' => ['required', 'string', 'max:255'],
             'items.*.pr_number' => ['required', 'string', 'max:255'],
             'items.*.ppm_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'items.*.ppm_temp_path' => ['nullable', 'string', 'max:255'],
+            'items.*.ppm_temp_original_name' => ['nullable', 'string', 'max:255'],
         ]);
         $ppmDate = Carbon::parse($validated['ppm_date'])->startOfDay();
 
@@ -572,6 +612,8 @@ class IctRequestController extends Controller
                 'ppm_number' => trim((string) $item['ppm_number']),
                 'pr_number' => trim((string) $item['pr_number']),
                 'ppm_attachment' => $item['ppm_attachment'] ?? null,
+                'ppm_temp_path' => (string) ($item['ppm_temp_path'] ?? ''),
+                'ppm_temp_original_name' => (string) ($item['ppm_temp_original_name'] ?? ''),
             ]);
 
         $itemsById = $ictRequest->items->keyBy('id');
@@ -584,9 +626,11 @@ class IctRequestController extends Controller
 
         foreach ($rows->groupBy('ppm_number') as $ppmNumber => $numberRows) {
             $uploadedFile = collect($numberRows)->pluck('ppm_attachment')->first(fn ($file) => $file instanceof UploadedFile);
+            $tempMeta = collect($numberRows)
+                ->first(fn ($row) => ! empty($row['ppm_temp_path']) && ! empty($row['ppm_temp_original_name']));
             $document = $documentsByNumber->get($ppmNumber);
 
-            if (! $document && ! ($uploadedFile instanceof UploadedFile)) {
+            if (! $document && ! ($uploadedFile instanceof UploadedFile) && ! $tempMeta) {
                 return back()
                     ->withErrors(['items' => "File PPM untuk nomor {$ppmNumber} wajib diupload minimal sekali."])
                     ->withInput();
@@ -598,6 +642,38 @@ class IctRequestController extends Controller
                 }
 
                 $stored = $this->storePpmAttachment($uploadedFile);
+
+                $document = IctRequestPpmDocument::updateOrCreate(
+                    [
+                        'ict_request_id' => $ictRequest->id,
+                        'ppm_number' => $ppmNumber,
+                    ],
+                    [
+                        'attachment_name' => $stored['name'],
+                        'attachment_path' => $stored['path'],
+                        'attachment_size' => $stored['size'],
+                        'attachment_mime' => $stored['mime'],
+                        'uploaded_by' => $request->user()->id,
+                        'uploaded_at' => $ppmDate,
+                    ]
+                );
+            } elseif ($tempMeta) {
+                if ($document && $document->attachment_path) {
+                    Storage::disk('public')->delete($document->attachment_path);
+                }
+
+                $stored = PublicFileUpload::finalizeTempToStableOrReuse(
+                    (string) $tempMeta['ppm_temp_path'],
+                    (string) $tempMeta['ppm_temp_original_name'],
+                    'ict-request-ppm',
+                    255
+                );
+
+                if (! $stored) {
+                    return back()
+                        ->withErrors(['items' => "File temp PPM untuk nomor {$ppmNumber} tidak ditemukan. Upload ulang file lalu simpan lagi."])
+                        ->withInput();
+                }
 
                 $document = IctRequestPpmDocument::updateOrCreate(
                     [
@@ -647,6 +723,8 @@ class IctRequestController extends Controller
             'items.*.item_id' => ['required', 'integer'],
             'items.*.po_number' => ['required', 'string', 'max:255'],
             'items.*.po_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'items.*.po_temp_path' => ['nullable', 'string', 'max:255'],
+            'items.*.po_temp_original_name' => ['nullable', 'string', 'max:255'],
         ]);
         $poDate = Carbon::parse($validated['po_date'])->startOfDay();
 
@@ -657,6 +735,8 @@ class IctRequestController extends Controller
                 'item_id' => (int) $item['item_id'],
                 'po_number' => trim((string) $item['po_number']),
                 'po_attachment' => $item['po_attachment'] ?? null,
+                'po_temp_path' => (string) ($item['po_temp_path'] ?? ''),
+                'po_temp_original_name' => (string) ($item['po_temp_original_name'] ?? ''),
             ]);
 
         $itemsById = $ictRequest->items->keyBy('id');
@@ -669,9 +749,11 @@ class IctRequestController extends Controller
 
         foreach ($rows->groupBy('po_number') as $poNumber => $numberRows) {
             $uploadedFile = collect($numberRows)->pluck('po_attachment')->first(fn ($file) => $file instanceof UploadedFile);
+            $tempMeta = collect($numberRows)
+                ->first(fn ($row) => ! empty($row['po_temp_path']) && ! empty($row['po_temp_original_name']));
             $document = $documentsByNumber->get($poNumber);
 
-            if (! $document && ! ($uploadedFile instanceof UploadedFile)) {
+            if (! $document && ! ($uploadedFile instanceof UploadedFile) && ! $tempMeta) {
                 return back()
                     ->withErrors(['items' => "File PO untuk nomor {$poNumber} wajib diupload minimal sekali."])
                     ->withInput();
@@ -683,6 +765,38 @@ class IctRequestController extends Controller
                 }
 
                 $stored = $this->storePoAttachment($uploadedFile);
+
+                $document = IctRequestPoDocument::updateOrCreate(
+                    [
+                        'ict_request_id' => $ictRequest->id,
+                        'po_number' => $poNumber,
+                    ],
+                    [
+                        'attachment_name' => $stored['name'],
+                        'attachment_path' => $stored['path'],
+                        'attachment_size' => $stored['size'],
+                        'attachment_mime' => $stored['mime'],
+                        'uploaded_by' => $request->user()->id,
+                        'uploaded_at' => $poDate,
+                    ]
+                );
+            } elseif ($tempMeta) {
+                if ($document && $document->attachment_path) {
+                    Storage::disk('public')->delete($document->attachment_path);
+                }
+
+                $stored = PublicFileUpload::finalizeTempToStableOrReuse(
+                    (string) $tempMeta['po_temp_path'],
+                    (string) $tempMeta['po_temp_original_name'],
+                    'ict-request-po',
+                    255
+                );
+
+                if (! $stored) {
+                    return back()
+                        ->withErrors(['items' => "File temp PO untuk nomor {$poNumber} tidak ditemukan. Upload ulang file lalu simpan lagi."])
+                        ->withInput();
+                }
 
                 $document = IctRequestPoDocument::updateOrCreate(
                     [
@@ -939,7 +1053,7 @@ class IctRequestController extends Controller
 
     protected function resolveQuotationAttachmentStorage(UploadedFile $attachment): array
     {
-        return PublicFileUpload::store($attachment, 'ict-request-quotations', 255, 'quotation');
+        return PublicFileUpload::storeStableOrReuse($attachment, 'ict-request-quotations', 255);
     }
 
     protected function resolveItemPhotoStorage(UploadedFile $photo): array
@@ -1344,17 +1458,17 @@ class IctRequestController extends Controller
 
     protected function storePpnkAttachment(UploadedFile $attachment): array
     {
-        return PublicFileUpload::store($attachment, 'ict-request-ppnk', 255, 'ppnk');
+        return PublicFileUpload::storeStableOrReuse($attachment, 'ict-request-ppnk', 255);
     }
 
     protected function storePpmAttachment(UploadedFile $attachment): array
     {
-        return PublicFileUpload::store($attachment, 'ict-request-ppm', 255, 'ppm');
+        return PublicFileUpload::storeStableOrReuse($attachment, 'ict-request-ppm', 255);
     }
 
     protected function storePoAttachment(UploadedFile $attachment): array
     {
-        return PublicFileUpload::store($attachment, 'ict-request-po', 255, 'po');
+        return PublicFileUpload::storeStableOrReuse($attachment, 'ict-request-po', 255);
     }
 
     protected function deleteIctRequestFiles(IctRequest $ictRequest): void
@@ -1433,6 +1547,10 @@ class IctRequestController extends Controller
             'items.*.description' => ['nullable', 'string', 'max:1000'],
             'items.*.serah_terima' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
             'items.*.surat_jalan' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'items.*.serah_terima_temp_path' => ['nullable', 'string', 'max:255'],
+            'items.*.serah_terima_temp_original_name' => ['nullable', 'string', 'max:255'],
+            'items.*.surat_jalan_temp_path' => ['nullable', 'string', 'max:255'],
+            'items.*.surat_jalan_temp_original_name' => ['nullable', 'string', 'max:255'],
             
             // Asset-specific fields
             'items.*.dept' => ['nullable', 'string', 'max:255'],
@@ -1471,10 +1589,42 @@ class IctRequestController extends Controller
                 $handoverData['serah_terima_name'] = $stored['name'];
                 $handoverData['serah_terima_size'] = $stored['size'];
                 $handoverData['serah_terima_mime'] = $stored['mime'];
+            } elseif (! empty($itemData['serah_terima_temp_path']) && ! empty($itemData['serah_terima_temp_original_name'])) {
+                $stored = PublicFileUpload::finalizeTempToStableOrReuse(
+                    (string) $itemData['serah_terima_temp_path'],
+                    (string) $itemData['serah_terima_temp_original_name'],
+                    'ict-handover-documents',
+                    255
+                );
+                if (! $stored) {
+                    return back()->withErrors([
+                        'items' => "File temp serah terima untuk item {$ictRequestItem->item_name} tidak ditemukan. Upload ulang file lalu simpan lagi.",
+                    ])->withInput();
+                }
+                $handoverData['serah_terima_path'] = $stored['path'];
+                $handoverData['serah_terima_name'] = $stored['name'];
+                $handoverData['serah_terima_size'] = $stored['size'];
+                $handoverData['serah_terima_mime'] = $stored['mime'];
             }
 
             if (isset($itemData['surat_jalan']) && $itemData['surat_jalan'] instanceof UploadedFile) {
                 $stored = $this->storeHandoverAttachment($itemData['surat_jalan'], 'surat_jalan');
+                $handoverData['surat_jalan_path'] = $stored['path'];
+                $handoverData['surat_jalan_name'] = $stored['name'];
+                $handoverData['surat_jalan_size'] = $stored['size'];
+                $handoverData['surat_jalan_mime'] = $stored['mime'];
+            } elseif (! empty($itemData['surat_jalan_temp_path']) && ! empty($itemData['surat_jalan_temp_original_name'])) {
+                $stored = PublicFileUpload::finalizeTempToStableOrReuse(
+                    (string) $itemData['surat_jalan_temp_path'],
+                    (string) $itemData['surat_jalan_temp_original_name'],
+                    'ict-handover-documents',
+                    255
+                );
+                if (! $stored) {
+                    return back()->withErrors([
+                        'items' => "File temp surat jalan untuk item {$ictRequestItem->item_name} tidak ditemukan. Upload ulang file lalu simpan lagi.",
+                    ])->withInput();
+                }
                 $handoverData['surat_jalan_path'] = $stored['path'];
                 $handoverData['surat_jalan_name'] = $stored['name'];
                 $handoverData['surat_jalan_size'] = $stored['size'];
@@ -1563,7 +1713,7 @@ class IctRequestController extends Controller
 
     protected function storeHandoverAttachment(UploadedFile $file, string $prefix): array
     {
-        return PublicFileUpload::store($file, 'ict-handover-documents', 255, $prefix);
+        return PublicFileUpload::storeStableOrReuse($file, 'ict-handover-documents', 255);
     }
 
     public function handoverReportPdf(IctRequest $ictRequest, AssetHandover $assetHandover): BinaryFileResponse|Response

@@ -9,6 +9,122 @@ use Illuminate\Support\Str;
 class PublicFileUpload
 {
     /**
+     * Store with stable filename (based on original name).
+     * If the same filename already exists in the target directory, reuse it.
+     *
+     * @return array{name:string,path:string,size:int|false,mime:string}
+     */
+    public static function storeStableOrReuse(UploadedFile $file, string $directory, int $displayLength = 255): array
+    {
+        $directory = trim($directory, '/');
+        $originalBase = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $slugBase = Str::slug($originalBase);
+        $slugBase = $slugBase !== '' ? $slugBase : 'file';
+        $slugBase = Str::limit($slugBase, 80, '');
+
+        if (self::shouldCompressImage($file)) {
+            $storedName = $slugBase.'.jpg';
+            $displayName = self::buildDisplayName($file, $displayLength, 'jpg');
+            $path = $directory.'/'.$storedName;
+
+            if (Storage::disk('public')->exists($path)) {
+                return [
+                    'name' => $displayName,
+                    'path' => $path,
+                    'size' => Storage::disk('public')->size($path),
+                    'mime' => Storage::disk('public')->mimeType($path) ?: 'image/jpeg',
+                ];
+            }
+
+            $binary = self::compressImageBinary($file, 460 * 1024);
+            Storage::disk('public')->put($path, $binary);
+
+            return [
+                'name' => $displayName,
+                'path' => $path,
+                'size' => Storage::disk('public')->size($path),
+                'mime' => 'image/jpeg',
+            ];
+        }
+
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'dat');
+        $storedName = $slugBase.'.'.$extension;
+        $displayName = self::buildDisplayName($file, $displayLength, $extension);
+        $path = $directory.'/'.$storedName;
+
+        if (Storage::disk('public')->exists($path)) {
+            return [
+                'name' => $displayName,
+                'path' => $path,
+                'size' => Storage::disk('public')->size($path),
+                'mime' => Storage::disk('public')->mimeType($path) ?: ($file->getClientMimeType() ?: 'application/octet-stream'),
+            ];
+        }
+
+        $file->storeAs($directory, $storedName, 'public');
+
+        return [
+            'name' => $displayName,
+            'path' => $path,
+            'size' => Storage::disk('public')->size($path),
+            'mime' => $file->getClientMimeType() ?: 'application/octet-stream',
+        ];
+    }
+
+    /**
+     * Finalize a temporary uploaded file (public disk) into a target directory.
+     * - If a stable target filename already exists, reuse it and delete temp.
+     * - If temp does not exist, return null.
+     *
+     * @return array{name:string,path:string,size:int|false,mime:string}|null
+     */
+    public static function finalizeTempToStableOrReuse(string $tempPath, string $originalName, string $directory, int $displayLength = 255): ?array
+    {
+        $tempPath = ltrim($tempPath, '/');
+        $directory = trim($directory, '/');
+
+        if ($tempPath === '' || ! Storage::disk('public')->exists($tempPath)) {
+            return null;
+        }
+
+        $base = Str::slug(pathinfo($originalName, PATHINFO_FILENAME));
+        $base = $base !== '' ? $base : 'file';
+        $base = Str::limit($base, 80, '');
+
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: 'dat');
+        $mime = Storage::disk('public')->mimeType($tempPath) ?: 'application/octet-stream';
+
+        if (str_starts_with(strtolower($mime), 'image/')) {
+            $extension = 'jpg';
+            $mime = 'image/jpeg';
+        }
+
+        $storedName = $base.'.'.$extension;
+        $path = $directory.'/'.$storedName;
+        $displayName = Str::limit(Str::slug($base), max($displayLength - strlen($extension) - 1, 1), '').'.'.$extension;
+
+        if (Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($tempPath);
+
+            return [
+                'name' => $displayName,
+                'path' => $path,
+                'size' => Storage::disk('public')->size($path),
+                'mime' => Storage::disk('public')->mimeType($path) ?: $mime,
+            ];
+        }
+
+        Storage::disk('public')->move($tempPath, $path);
+
+        return [
+            'name' => $displayName,
+            'path' => $path,
+            'size' => Storage::disk('public')->size($path),
+            'mime' => Storage::disk('public')->mimeType($path) ?: $mime,
+        ];
+    }
+
+    /**
      * @return array{name:string,path:string,size:int|false,mime:string}
      */
     public static function store(UploadedFile $file, string $directory, int $displayLength = 255, ?string $prefix = null): array

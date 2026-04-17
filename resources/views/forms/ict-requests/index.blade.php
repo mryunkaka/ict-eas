@@ -168,6 +168,75 @@
                 totalMatching: @js($requests->count()),
                 detailMap: @js($requestDetails->keyBy('id')),
                 openDetailId: null,
+                tempUpload: {
+                    key(scope, targetId) {
+                        return `ict-eas:temp-upload:${scope}:${String(targetId)}`;
+                    },
+                    load(scope, targetId) {
+                        try {
+                            return JSON.parse(localStorage.getItem(this.key(scope, targetId)) || '{}') || {};
+                        } catch (e) {
+                            return {};
+                        }
+                    },
+                    save(scope, targetId, payload) {
+                        localStorage.setItem(this.key(scope, targetId), JSON.stringify(payload || {}));
+                    },
+                    clear(scope, targetId) {
+                        localStorage.removeItem(this.key(scope, targetId));
+                    },
+                },
+                uploadStates: {},
+                isUploading(scope, targetId, fieldKey) {
+                    return !!this.uploadStates?.[`${scope}:${targetId}:${fieldKey}`]?.loading;
+                },
+                async uploadTempFile(scope, targetId, fieldKey, file) {
+                    if (!file) return null;
+                    const stateKey = `${scope}:${targetId}:${fieldKey}`;
+                    this.uploadStates[stateKey] = { loading: true, error: null };
+                    try {
+                        const form = new FormData();
+                        form.append('scope', `${scope}-${targetId}`);
+                        form.append('file', file);
+                        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                        const response = await fetch(@js(route('uploads.temp.store')), {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': token,
+                                'X-Requested-With': 'XMLHttpRequest',
+                                Accept: 'application/json',
+                            },
+                            body: form,
+                        });
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        const payload = await response.json();
+                        const temp = payload?.temp;
+                        if (!temp?.path) throw new Error('Upload gagal.');
+                        this.uploadStates[stateKey] = { loading: false, error: null };
+                        return temp;
+                    } catch (e) {
+                        this.uploadStates[stateKey] = { loading: false, error: 'Upload gagal' };
+                        return null;
+                    }
+                },
+                async unlinkTempFile(tempPath) {
+                    if (!tempPath) return;
+                    try {
+                        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                        await fetch(@js(route('uploads.temp.destroy')), {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': token,
+                                'X-Requested-With': 'XMLHttpRequest',
+                                Accept: 'application/json',
+                            },
+                            body: JSON.stringify({ path: tempPath }),
+                        });
+                    } catch (e) {
+                        // ignore
+                    }
+                },
                 validationTarget: null,
                 validationAction: 'approve',
                 validationNote: '',
@@ -178,11 +247,15 @@
                 goodsArrivalTarget: null,
                 goodsReceiptTarget: null,
                 ppnkDate: '',
+                ppnkTemps: {},
                 auditDate: '',
                 ppmDate: '',
+                ppmTemps: {},
                 poDate: '',
+                poTemps: {},
                 goodsArrivalDate: '',
                 goodsReceiptDate: '',
+                goodsReceiptTemps: {},
                 nonAssetInfoTarget: null,
                 handoverTypes: {},
                 getHandoverType(index, defaultValue = 'asset') {
@@ -271,6 +344,7 @@
                 },
                 signedPdfTarget: null,
                 signedPdfDate: '',
+                signedTemp: {},
                 getTodayDate() {
                     return new Date().toISOString().slice(0, 10);
                 },
@@ -278,6 +352,7 @@
                     const targetId = String(id);
                     this.signedPdfTarget = targetId;
                     this.signedPdfDate = this.getTodayDate();
+                    this.signedTemp = this.tempUpload.load('signed', targetId) || {};
                     this.$nextTick(() => {
                         if (!this.$refs.signedPdfForm) return;
                         this.$refs.signedPdfForm.action = this.detailMap[targetId]?.upload_signed_url ?? '';
@@ -286,6 +361,7 @@
                 closeSignedPdfModal() {
                     this.signedPdfTarget = null;
                     this.signedPdfDate = '';
+                    this.signedTemp = {};
                     if (this.$refs.signedPdfForm) {
                         this.$refs.signedPdfForm.reset();
                     }
@@ -293,12 +369,33 @@
                 submitSignedPdfForm() {
                     if (!this.signedPdfTarget || !this.$refs.signedPdfForm) return;
                     if (!this.$refs.signedPdfForm.reportValidity()) return;
+                    if (!this.signedTemp?.path) {
+                        alert('Upload file dulu sebelum simpan.');
+                        return;
+                    }
                     this.$refs.signedPdfForm.submit();
+                },
+                async onSignedFilePicked(event) {
+                    const [file] = event.target.files ?? [];
+                    if (!file || !this.signedPdfTarget) return;
+                    const temp = await this.uploadTempFile('signed', this.signedPdfTarget, 'signed_pdf', file);
+                    if (temp) {
+                        this.signedTemp = temp;
+                        this.tempUpload.save('signed', this.signedPdfTarget, temp);
+                        event.target.value = '';
+                    }
+                },
+                async removeSignedTemp() {
+                    if (!this.signedPdfTarget || !this.signedTemp?.path) return;
+                    await this.unlinkTempFile(this.signedTemp.path);
+                    this.signedTemp = {};
+                    this.tempUpload.clear('signed', this.signedPdfTarget);
                 },
                 openPpnkModal(id) {
                     const targetId = String(id);
                     this.ppnkTarget = targetId;
                     this.ppnkDate = this.getTodayDate();
+                    this.ppnkTemps = this.tempUpload.load('ppnk', targetId) || {};
                     this.$nextTick(() => {
                         if (!this.$refs.ppnkForm) return;
                         this.$refs.ppnkForm.action = this.detailMap[targetId]?.upload_ppnk_url ?? '';
@@ -307,6 +404,7 @@
                 closePpnkModal() {
                     this.ppnkTarget = null;
                     this.ppnkDate = '';
+                    this.ppnkTemps = {};
                     if (this.$refs.ppnkForm) {
                         this.$refs.ppnkForm.reset();
                     }
@@ -318,10 +416,32 @@
                     }
                     this.$refs.ppnkForm.submit();
                 },
+                async onPpnkFilePicked(event, index) {
+                    const [file] = event.target.files ?? [];
+                    if (!file || !this.ppnkTarget) return;
+                    const temp = await this.uploadTempFile('ppnk', this.ppnkTarget, `items.${index}.ppnk_attachment`, file);
+                    if (temp) {
+                        this.ppnkTemps = { ...(this.ppnkTemps || {}), [String(index)]: temp };
+                        this.tempUpload.save('ppnk', this.ppnkTarget, this.ppnkTemps);
+                        event.target.value = '';
+                    }
+                },
+                async removePpnkTemp(index) {
+                    if (!this.ppnkTarget) return;
+                    const key = String(index);
+                    const temp = this.ppnkTemps?.[key];
+                    if (!temp?.path) return;
+                    await this.unlinkTempFile(temp.path);
+                    const next = { ...(this.ppnkTemps || {}) };
+                    delete next[key];
+                    this.ppnkTemps = next;
+                    this.tempUpload.save('ppnk', this.ppnkTarget, this.ppnkTemps);
+                },
                 openPpmModal(id) {
                     const targetId = String(id);
                     this.ppmTarget = targetId;
                     this.ppmDate = this.getTodayDate();
+                    this.ppmTemps = this.tempUpload.load('ppm', targetId) || {};
                     this.$nextTick(() => {
                         if (!this.$refs.ppmForm) return;
                         this.$refs.ppmForm.action = this.detailMap[targetId]?.upload_ppm_url ?? '';
@@ -330,6 +450,7 @@
                 closePpmModal() {
                     this.ppmTarget = null;
                     this.ppmDate = '';
+                    this.ppmTemps = {};
                     if (this.$refs.ppmForm) {
                         this.$refs.ppmForm.reset();
                     }
@@ -341,10 +462,32 @@
                     }
                     this.$refs.ppmForm.submit();
                 },
+                async onPpmFilePicked(event, index) {
+                    const [file] = event.target.files ?? [];
+                    if (!file || !this.ppmTarget) return;
+                    const temp = await this.uploadTempFile('ppm', this.ppmTarget, `items.${index}.ppm_attachment`, file);
+                    if (temp) {
+                        this.ppmTemps = { ...(this.ppmTemps || {}), [String(index)]: temp };
+                        this.tempUpload.save('ppm', this.ppmTarget, this.ppmTemps);
+                        event.target.value = '';
+                    }
+                },
+                async removePpmTemp(index) {
+                    if (!this.ppmTarget) return;
+                    const key = String(index);
+                    const temp = this.ppmTemps?.[key];
+                    if (!temp?.path) return;
+                    await this.unlinkTempFile(temp.path);
+                    const next = { ...(this.ppmTemps || {}) };
+                    delete next[key];
+                    this.ppmTemps = next;
+                    this.tempUpload.save('ppm', this.ppmTarget, this.ppmTemps);
+                },
                 openPoModal(id) {
                     const targetId = String(id);
                     this.poTarget = targetId;
                     this.poDate = this.getTodayDate();
+                    this.poTemps = this.tempUpload.load('po', targetId) || {};
                     this.$nextTick(() => {
                         if (!this.$refs.poForm) return;
                         this.$refs.poForm.action = this.detailMap[targetId]?.upload_po_url ?? '';
@@ -353,6 +496,7 @@
                 closePoModal() {
                     this.poTarget = null;
                     this.poDate = '';
+                    this.poTemps = {};
                     if (this.$refs.poForm) {
                         this.$refs.poForm.reset();
                     }
@@ -363,6 +507,27 @@
                         return;
                     }
                     this.$refs.poForm.submit();
+                },
+                async onPoFilePicked(event, index) {
+                    const [file] = event.target.files ?? [];
+                    if (!file || !this.poTarget) return;
+                    const temp = await this.uploadTempFile('po', this.poTarget, `items.${index}.po_attachment`, file);
+                    if (temp) {
+                        this.poTemps = { ...(this.poTemps || {}), [String(index)]: temp };
+                        this.tempUpload.save('po', this.poTarget, this.poTemps);
+                        event.target.value = '';
+                    }
+                },
+                async removePoTemp(index) {
+                    if (!this.poTarget) return;
+                    const key = String(index);
+                    const temp = this.poTemps?.[key];
+                    if (!temp?.path) return;
+                    await this.unlinkTempFile(temp.path);
+                    const next = { ...(this.poTemps || {}) };
+                    delete next[key];
+                    this.poTemps = next;
+                    this.tempUpload.save('po', this.poTarget, this.poTemps);
                 },
                 openGoodsArrivalModal(id) {
                     this.goodsArrivalTarget = String(id);
@@ -390,6 +555,7 @@
                     const targetId = String(id);
                     this.goodsReceiptTarget = targetId;
                     this.goodsReceiptDate = this.getTodayDate();
+                    this.goodsReceiptTemps = this.tempUpload.load('goods-receipt', targetId) || {};
                     // Initialize handover types setelah data dimuat
                     this.$nextTick(() => {
                         const items = this.getGoodsReceiptItems();
@@ -402,6 +568,7 @@
                 closeGoodsReceiptModal() {
                     this.goodsReceiptTarget = null;
                     this.goodsReceiptDate = '';
+                    this.goodsReceiptTemps = {};
                     if (this.$refs.goodsReceiptForm) {
                         this.$refs.goodsReceiptForm.reset();
                     }
@@ -412,6 +579,28 @@
                         return;
                     }
                     this.$refs.goodsReceiptForm.submit();
+                },
+                async onGoodsReceiptFilePicked(event, index, field) {
+                    const [file] = event.target.files ?? [];
+                    if (!file || !this.goodsReceiptTarget) return;
+                    const key = `${index}:${field}`;
+                    const temp = await this.uploadTempFile('goods-receipt', this.goodsReceiptTarget, `items.${index}.${field}`, file);
+                    if (temp) {
+                        this.goodsReceiptTemps = { ...(this.goodsReceiptTemps || {}), [key]: temp };
+                        this.tempUpload.save('goods-receipt', this.goodsReceiptTarget, this.goodsReceiptTemps);
+                        event.target.value = '';
+                    }
+                },
+                async removeGoodsReceiptTemp(index, field) {
+                    if (!this.goodsReceiptTarget) return;
+                    const key = `${index}:${field}`;
+                    const temp = this.goodsReceiptTemps?.[key];
+                    if (!temp?.path) return;
+                    await this.unlinkTempFile(temp.path);
+                    const next = { ...(this.goodsReceiptTemps || {}) };
+                    delete next[key];
+                    this.goodsReceiptTemps = next;
+                    this.tempUpload.save('goods-receipt', this.goodsReceiptTarget, this.goodsReceiptTemps);
                 },
                 /**
                  * Menghitung jumlah unit yang diterima per item (qty - takeout_qty)
@@ -960,9 +1149,15 @@
                             @if ($canShowValidationColumn)
                                 <td class="ui-table-cell-nowrap text-center">
                                     @if ($canOpenValidation)
-                                        <x-button type="button" variant="action-approve" size="compact" x-on:click="openValidationModal('{{ $request->id }}')" title="Validasi">
-                                            <x-heroicon-o-check class="ui-action-icon" />
-                                        </x-button>
+                                        <button
+                                            type="button"
+                                            x-on:click="openValidationModal('{{ $request->id }}')"
+                                            class="ui-action-button ui-action-button--approve h-7 w-7 rounded-[0.65rem]"
+                                            title="Validasi"
+                                        >
+                                            <x-heroicon-o-check class="h-3 w-3" />
+                                            <span class="sr-only">Validasi</span>
+                                        </button>
                                     @else
                                         <span class="text-xs text-ink-400">-</span>
                                     @endif
@@ -1369,12 +1564,23 @@
                                         </div>
                                         <div>
                                             <label class="block text-xs font-medium text-ink-600">Upload Berkas</label>
+                                            <input type="hidden" :name="`items[${index}][ppnk_temp_path]`" :value="ppnkTemps[String(index)]?.path || ''" />
+                                            <input type="hidden" :name="`items[${index}][ppnk_temp_original_name]`" :value="ppnkTemps[String(index)]?.original_name || ''" />
                                             <input
                                                 type="file"
                                                 :name="`items[${index}][ppnk_attachment]`"
                                                 accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                data-auto-compress-image="1"
+                                                x-on:change="onPpnkFilePicked($event, index)"
                                                 class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
                                             />
+                                            <p x-show="isUploading('ppnk', ppnkTarget, `items.${index}.ppnk_attachment`)" class="mt-1 text-[11px] text-brand-600">Uploading...</p>
+                                            <template x-if="ppnkTemps[String(index)]?.path">
+                                                <div class="mt-1 flex items-center justify-between gap-2 rounded-lg border border-ink-100 bg-ink-50 px-2 py-1 text-[11px] text-ink-600">
+                                                    <span class="truncate" x-text="ppnkTemps[String(index)]?.original_name || ppnkTemps[String(index)]?.name"></span>
+                                                    <button type="button" x-on:click="removePpnkTemp(index)" class="rounded-md border border-ink-200 bg-white px-2 py-0.5 font-semibold hover:bg-ink-100">Unlink</button>
+                                                </div>
+                                            </template>
                                         </div>
                                     </div>
 
@@ -1459,14 +1665,31 @@
 
                     <label class="block space-y-2">
                         <span class="text-sm font-medium text-ink-700">Attach File</span>
+                        <input type="hidden" name="signed_temp_path" :value="signedTemp?.path || ''" />
+                        <input type="hidden" name="signed_temp_original_name" :value="signedTemp?.original_name || ''" />
                         <input
                             type="file"
                             name="signed_pdf"
                             accept="application/pdf"
-                            required
+                            x-on:change="onSignedFilePicked($event)"
                             class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition file:mr-4 file:rounded-xl file:border-0 file:bg-ink-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
                         />
-                        <p class="text-xs text-ink-500">Format file wajib PDF.</p>
+                        <div class="mt-2 text-xs text-ink-500">
+                            <template x-if="signedTemp?.path">
+                                <div class="flex items-center justify-between gap-2 rounded-xl border border-ink-100 bg-ink-50 px-3 py-2">
+                                    <div class="min-w-0">
+                                        <div class="truncate font-semibold text-ink-700" x-text="signedTemp?.original_name || signedTemp?.name"></div>
+                                        <div class="text-[11px] text-ink-500">Sudah terupload (temp). Kamu bisa unlink/ganti sebelum simpan.</div>
+                                    </div>
+                                    <button type="button" x-on:click="removeSignedTemp()" class="rounded-lg border border-ink-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-ink-700 hover:bg-ink-100">
+                                        Unlink
+                                    </button>
+                                </div>
+                            </template>
+                            <template x-if="!signedTemp?.path">
+                                <p>Format file wajib PDF. File akan langsung diupload saat dipilih.</p>
+                            </template>
+                        </div>
                     </label>
 
                     <div class="flex justify-end gap-2 border-t border-ink-100 pt-4">
@@ -1548,12 +1771,23 @@
                                         </div>
                                         <div>
                                             <label class="block text-xs font-medium text-ink-600">Upload Berkas</label>
+                                            <input type="hidden" :name="`items[${index}][ppm_temp_path]`" :value="ppmTemps[String(index)]?.path || ''" />
+                                            <input type="hidden" :name="`items[${index}][ppm_temp_original_name]`" :value="ppmTemps[String(index)]?.original_name || ''" />
                                             <input
                                                 type="file"
                                                 :name="`items[${index}][ppm_attachment]`"
                                                 accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                data-auto-compress-image="1"
+                                                x-on:change="onPpmFilePicked($event, index)"
                                                 class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
                                             />
+                                            <p x-show="isUploading('ppm', ppmTarget, `items.${index}.ppm_attachment`)" class="mt-1 text-[11px] text-brand-600">Uploading...</p>
+                                            <template x-if="ppmTemps[String(index)]?.path">
+                                                <div class="mt-1 flex items-center justify-between gap-2 rounded-lg border border-ink-100 bg-ink-50 px-2 py-1 text-[11px] text-ink-600">
+                                                    <span class="truncate" x-text="ppmTemps[String(index)]?.original_name || ppmTemps[String(index)]?.name"></span>
+                                                    <button type="button" x-on:click="removePpmTemp(index)" class="rounded-md border border-ink-200 bg-white px-2 py-0.5 font-semibold hover:bg-ink-100">Unlink</button>
+                                                </div>
+                                            </template>
                                         </div>
                                     </div>
 
@@ -1634,12 +1868,23 @@
                                         </div>
                                         <div>
                                             <label class="block text-xs font-medium text-ink-600">Upload Berkas</label>
+                                            <input type="hidden" :name="`items[${index}][po_temp_path]`" :value="poTemps[String(index)]?.path || ''" />
+                                            <input type="hidden" :name="`items[${index}][po_temp_original_name]`" :value="poTemps[String(index)]?.original_name || ''" />
                                             <input
                                                 type="file"
                                                 :name="`items[${index}][po_attachment]`"
                                                 accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                data-auto-compress-image="1"
+                                                x-on:change="onPoFilePicked($event, index)"
                                                 class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
                                             />
+                                            <p x-show="isUploading('po', poTarget, `items.${index}.po_attachment`)" class="mt-1 text-[11px] text-brand-600">Uploading...</p>
+                                            <template x-if="poTemps[String(index)]?.path">
+                                                <div class="mt-1 flex items-center justify-between gap-2 rounded-lg border border-ink-100 bg-ink-50 px-2 py-1 text-[11px] text-ink-600">
+                                                    <span class="truncate" x-text="poTemps[String(index)]?.original_name || poTemps[String(index)]?.name"></span>
+                                                    <button type="button" x-on:click="removePoTemp(index)" class="rounded-md border border-ink-200 bg-white px-2 py-0.5 font-semibold hover:bg-ink-100">Unlink</button>
+                                                </div>
+                                            </template>
                                         </div>
                                     </div>
 
@@ -1898,12 +2143,23 @@
                                             </div>
                                             <div>
                                                 <label class="block text-xs font-medium text-ink-600">Upload Surat Jalan (PDF/Gambar)</label>
+                                                <input type="hidden" :name="`items[${index}][surat_jalan_temp_path]`" :value="goodsReceiptTemps[`${index}:surat_jalan`]?.path || ''" />
+                                                <input type="hidden" :name="`items[${index}][surat_jalan_temp_original_name]`" :value="goodsReceiptTemps[`${index}:surat_jalan`]?.original_name || ''" />
                                                 <input
                                                     type="file"
                                                     :name="`items[${index}][surat_jalan]`"
                                                     accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                    data-auto-compress-image="1"
+                                                    x-on:change="onGoodsReceiptFilePicked($event, index, 'surat_jalan')"
                                                     class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
                                                 />
+                                                <p x-show="isUploading('goods-receipt', goodsReceiptTarget, `items.${index}.surat_jalan`)" class="mt-1 text-[11px] text-brand-600">Uploading...</p>
+                                                <template x-if="goodsReceiptTemps[`${index}:surat_jalan`]?.path">
+                                                    <div class="mt-1 flex items-center justify-between gap-2 rounded-lg border border-ink-100 bg-ink-50 px-2 py-1 text-[11px] text-ink-600">
+                                                        <span class="truncate" x-text="goodsReceiptTemps[`${index}:surat_jalan`]?.original_name || goodsReceiptTemps[`${index}:surat_jalan`]?.name"></span>
+                                                        <button type="button" x-on:click="removeGoodsReceiptTemp(index, 'surat_jalan')" class="rounded-md border border-ink-200 bg-white px-2 py-0.5 font-semibold hover:bg-ink-100">Unlink</button>
+                                                    </div>
+                                                </template>
                                             </div>
                                         </div>
                                     </template>
@@ -2057,22 +2313,44 @@
                                         <div class="grid gap-3 md:grid-cols-2">
                                             <div>
                                                 <label class="block text-xs font-medium text-ink-600">Upload Surat Jalan</label>
+                                                <input type="hidden" :name="`items[${index}][surat_jalan_temp_path]`" :value="goodsReceiptTemps[`${index}:surat_jalan`]?.path || ''" />
+                                                <input type="hidden" :name="`items[${index}][surat_jalan_temp_original_name]`" :value="goodsReceiptTemps[`${index}:surat_jalan`]?.original_name || ''" />
                                                 <input
                                                     type="file"
                                                     :name="`items[${index}][surat_jalan]`"
                                                     accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                    data-auto-compress-image="1"
+                                                    x-on:change="onGoodsReceiptFilePicked($event, index, 'surat_jalan')"
                                                     class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
                                                 />
+                                                <p x-show="isUploading('goods-receipt', goodsReceiptTarget, `items.${index}.surat_jalan`)" class="mt-1 text-[11px] text-brand-600">Uploading...</p>
+                                                <template x-if="goodsReceiptTemps[`${index}:surat_jalan`]?.path">
+                                                    <div class="mt-1 flex items-center justify-between gap-2 rounded-lg border border-ink-100 bg-ink-50 px-2 py-1 text-[11px] text-ink-600">
+                                                        <span class="truncate" x-text="goodsReceiptTemps[`${index}:surat_jalan`]?.original_name || goodsReceiptTemps[`${index}:surat_jalan`]?.name"></span>
+                                                        <button type="button" x-on:click="removeGoodsReceiptTemp(index, 'surat_jalan')" class="rounded-md border border-ink-200 bg-white px-2 py-0.5 font-semibold hover:bg-ink-100">Unlink</button>
+                                                    </div>
+                                                </template>
                                             </div>
                                             <div>
                                                 <label class="block text-xs font-medium text-ink-600">Upload Foto Barang</label>
                                                 <p class="text-xs text-amber-600 mb-1">Foto ini akan dilampirkan di berkas Berita Acara Serah Terima</p>
+                                                <input type="hidden" :name="`items[${index}][serah_terima_temp_path]`" :value="goodsReceiptTemps[`${index}:serah_terima`]?.path || ''" />
+                                                <input type="hidden" :name="`items[${index}][serah_terima_temp_original_name]`" :value="goodsReceiptTemps[`${index}:serah_terima`]?.original_name || ''" />
                                                 <input
                                                     type="file"
                                                     :name="`items[${index}][serah_terima]`"
                                                     accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                    data-auto-compress-image="1"
+                                                    x-on:change="onGoodsReceiptFilePicked($event, index, 'serah_terima')"
                                                     class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500"
                                                 />
+                                                <p x-show="isUploading('goods-receipt', goodsReceiptTarget, `items.${index}.serah_terima`)" class="mt-1 text-[11px] text-brand-600">Uploading...</p>
+                                                <template x-if="goodsReceiptTemps[`${index}:serah_terima`]?.path">
+                                                    <div class="mt-1 flex items-center justify-between gap-2 rounded-lg border border-ink-100 bg-ink-50 px-2 py-1 text-[11px] text-ink-600">
+                                                        <span class="truncate" x-text="goodsReceiptTemps[`${index}:serah_terima`]?.original_name || goodsReceiptTemps[`${index}:serah_terima`]?.name"></span>
+                                                        <button type="button" x-on:click="removeGoodsReceiptTemp(index, 'serah_terima')" class="rounded-md border border-ink-200 bg-white px-2 py-0.5 font-semibold hover:bg-ink-100">Unlink</button>
+                                                    </div>
+                                                </template>
                                             </div>
                                         </div>
                                         </div>

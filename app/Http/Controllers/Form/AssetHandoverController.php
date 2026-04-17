@@ -243,6 +243,6 @@ class AssetHandoverController extends Controller
 
     protected function storeHandoverAttachment(UploadedFile $file, string $prefix): array
     {
-        return PublicFileUpload::store($file, 'ict-handover-documents', 255, $prefix);
+        return PublicFileUpload::storeStableOrReuse($file, 'ict-handover-documents', 255);
     }
 }

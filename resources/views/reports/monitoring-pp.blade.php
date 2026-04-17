@@ -133,27 +133,27 @@
                     </div>
 
                     <div data-upload-scope="photo" class="hidden">
-                        <x-input name="photo" type="file" label="Foto Barang" accept="image/*" />
+                        <x-input name="photo" type="file" label="Foto Barang" accept="image/*" data-auto-compress-image="1" />
                     </div>
 
                     <div data-upload-scope="signed-form" class="hidden">
-                        <x-input name="signed_pdf" type="file" label="Form ICT Full TTD" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                        <x-input name="signed_pdf" type="file" label="Form ICT Full TTD" accept=".pdf,.jpg,.jpeg,.png,.webp" data-auto-compress-image="1" />
                     </div>
 
                     <div data-upload-scope="ppnk" class="hidden">
-                        <x-input name="attachment" type="file" label="Berkas PPNK/PPK" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                        <x-input name="attachment" type="file" label="Berkas PPNK/PPK" accept=".pdf,.jpg,.jpeg,.png,.webp" data-auto-compress-image="1" />
                     </div>
 
                     <div data-upload-scope="ppm" class="hidden">
-                        <x-input name="attachment" type="file" label="Berkas PPM" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                        <x-input name="attachment" type="file" label="Berkas PPM" accept=".pdf,.jpg,.jpeg,.png,.webp" data-auto-compress-image="1" />
                     </div>
 
                     <div data-upload-scope="po" class="hidden">
-                        <x-input name="attachment" type="file" label="Berkas PO" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                        <x-input name="attachment" type="file" label="Berkas PO" accept=".pdf,.jpg,.jpeg,.png,.webp" data-auto-compress-image="1" />
                     </div>
 
                     <div data-upload-scope="ba" class="hidden">
-                        <x-input name="attachment" type="file" label="BA Serah Terima Full TTD" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                        <x-input name="attachment" type="file" label="BA Serah Terima Full TTD" accept=".pdf,.jpg,.jpeg,.png,.webp" data-auto-compress-image="1" />
                     </div>
 
                     <div class="flex justify-end gap-3 pt-2">

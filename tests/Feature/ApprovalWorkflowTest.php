@@ -52,7 +52,7 @@ class ApprovalWorkflowTest extends TestCase
         $this->actingAs($admin)
             ->post(route('approvals.ict.update', $request), [
                 'action' => 'upload_signed_pdf',
-                'signed_pdf' => UploadedFile::fake()->create('signed.pdf', 300, 'application/pdf'),
+                'signed_pdf' => UploadedFile::fake()->createWithContent('signed.pdf', "%PDF-1.4\n%PDF-FAKE\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"),
             ])
             ->assertRedirect();
 

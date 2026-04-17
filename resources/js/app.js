@@ -3,10 +3,12 @@ import './bootstrap';
 import Alpine from 'alpinejs';
 import DataTable from 'datatables.net-dt';
 import { wireIctRequestIdentifier } from './helpers/ict-request-identifier';
+import { wireAutoCompressImageUploads } from './helpers/auto-compress-image-upload';
 
 window.Alpine = Alpine;
 window.DataTable = DataTable;
 window.wireIctRequestIdentifier = wireIctRequestIdentifier;
+window.wireAutoCompressImageUploads = wireAutoCompressImageUploads;
 
 const sidebarPreferenceKey = 'ict-eas:sidebar-open';
 
@@ -520,3 +522,7 @@ document.addEventListener('alpine:init', () => {
 });
 
 Alpine.start();
+
+document.addEventListener('DOMContentLoaded', () => {
+    window.wireAutoCompressImageUploads?.();
+});

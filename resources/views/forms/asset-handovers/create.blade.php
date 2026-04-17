@@ -76,11 +76,11 @@
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         <label class="block space-y-2">
                             <span class="text-sm font-medium text-ink-700">Upload Surat Jalan</span>
-                            <input type="file" name="surat_jalan" accept=".pdf,.jpg,.jpeg,.png,.webp" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500" />
+                            <input type="file" name="surat_jalan" accept=".pdf,.jpg,.jpeg,.png,.webp" data-auto-compress-image="1" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500" />
                         </label>
                         <label class="block space-y-2">
                             <span class="text-sm font-medium text-ink-700">Upload Foto / Lampiran Serah Terima</span>
-                            <input type="file" name="serah_terima" accept=".pdf,.jpg,.jpeg,.png,.webp" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500" />
+                            <input type="file" name="serah_terima" accept=".pdf,.jpg,.jpeg,.png,.webp" data-auto-compress-image="1" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-ink-100 file:px-2 file:py-1.5 file:text-xs file:font-semibold file:text-ink-700 hover:file:bg-ink-200 focus:border-brand-500" />
                         </label>
                     </div>
 

@@ -399,7 +399,7 @@ class ReportController extends Controller
 
         /** @var UploadedFile $photo */
         $photo = $validated['photo'];
-        $stored = PublicFileUpload::store($photo, 'ict-request-items', 15, 'photo');
+        $stored = PublicFileUpload::storeStableOrReuse($photo, 'ict-request-items', 15);
 
         $item->update([
             'photo_name' => $stored['name'],
@@ -425,7 +425,7 @@ class ReportController extends Controller
 
         /** @var UploadedFile $file */
         $file = $validated['signed_pdf'];
-        $stored = PublicFileUpload::store($file, 'ict-request-signed', 255, 'signed');
+        $stored = PublicFileUpload::storeStableOrReuse($file, 'ict-request-signed', 255);
 
         $ictRequest->update([
             'final_signed_pdf_name' => $stored['name'],
@@ -468,7 +468,7 @@ class ReportController extends Controller
 
             /** @var UploadedFile $attachment */
             $attachment = $validated['attachment'];
-            $stored = PublicFileUpload::store($attachment, 'ict-request-ppnk', 255, 'ppnk');
+            $stored = PublicFileUpload::storeStableOrReuse($attachment, 'ict-request-ppnk', 255);
             $payload = array_merge($payload, [
                 'attachment_name' => $stored['name'],
                 'attachment_path' => $stored['path'],
@@ -530,7 +530,7 @@ class ReportController extends Controller
 
             /** @var UploadedFile $attachment */
             $attachment = $validated['attachment'];
-            $stored = PublicFileUpload::store($attachment, 'ict-request-ppm', 255, 'ppm');
+            $stored = PublicFileUpload::storeStableOrReuse($attachment, 'ict-request-ppm', 255);
             $payload = array_merge($payload, [
                 'attachment_name' => $stored['name'],
                 'attachment_path' => $stored['path'],
@@ -592,7 +592,7 @@ class ReportController extends Controller
 
             /** @var UploadedFile $attachment */
             $attachment = $validated['attachment'];
-            $stored = PublicFileUpload::store($attachment, 'ict-request-po', 255, 'po');
+            $stored = PublicFileUpload::storeStableOrReuse($attachment, 'ict-request-po', 255);
             $payload = array_merge($payload, [
                 'attachment_name' => $stored['name'],
                 'attachment_path' => $stored['path'],
@@ -638,7 +638,7 @@ class ReportController extends Controller
 
         /** @var UploadedFile $attachment */
         $attachment = $validated['attachment'];
-        $stored = PublicFileUpload::store($attachment, 'ict-handover-documents', 255, 'serah-terima');
+        $stored = PublicFileUpload::storeStableOrReuse($attachment, 'ict-handover-documents', 255);
 
         $assetHandover->update([
             'serah_terima_name' => $stored['name'],

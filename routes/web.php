@@ -26,6 +26,7 @@ use App\Http\Controllers\Form\ProjectRequestController;
 use App\Http\Controllers\Form\RepairRequestController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\TempUploadController;
 use App\Http\Controllers\Tools\PingServerController;
 use App\Http\Controllers\Tools\DbConnectionController;
 use App\Http\Controllers\Tools\SqlSyncController;
@@ -68,6 +69,8 @@ Route::middleware('auth')->group(function () {
 	    });
 
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
+    Route::post('/uploads/temp', [TempUploadController::class, 'store'])->name('uploads.temp.store');
+    Route::delete('/uploads/temp', [TempUploadController::class, 'destroy'])->name('uploads.temp.destroy');
     Route::get('/approvals', function () {
         return redirect()->route('forms.ict-requests.index');
     })->name('approvals.index');

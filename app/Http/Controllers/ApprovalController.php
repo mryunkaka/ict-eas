@@ -64,8 +64,10 @@ class ApprovalController extends Controller
     {
         $validated = $request->validate([
             'action' => ['required', 'in:approve,reject,revise,upload_signed_pdf'],
-            'signed_pdf' => ['nullable', 'required_if:action,upload_signed_pdf', 'file', 'mimes:pdf', 'max:10240'],
+            'signed_pdf' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
             'signed_date' => ['nullable', 'required_if:action,upload_signed_pdf', 'date'],
+            'signed_temp_path' => ['nullable', 'string', 'max:255'],
+            'signed_temp_original_name' => ['nullable', 'string', 'max:255'],
             'review_note' => ['nullable', 'string'],
             'revision_attachment' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
@@ -159,16 +161,39 @@ class ApprovalController extends Controller
         if ($validated['action'] === 'upload_signed_pdf') {
             abort_unless($this->canUploadSignedPdf($user, $ictRequest), 403);
 
-            $signedPdf = $validated['signed_pdf'];
+            $signedPdf = $validated['signed_pdf'] ?? null;
+            $signedTempPath = (string) ($validated['signed_temp_path'] ?? '');
+            $signedTempOriginalName = (string) ($validated['signed_temp_original_name'] ?? '');
+
+            if (! ($signedPdf instanceof UploadedFile) && ($signedTempPath === '' || $signedTempOriginalName === '')) {
+                return back()->withErrors([
+                    'signed_pdf' => 'Silakan pilih file atau upload file temp terlebih dahulu.',
+                ])->withInput();
+            }
 
             if ($signedPdf instanceof UploadedFile) {
                 [
                     'name' => $signedPdfName,
                     'path' => $signedPdfPath,
                 ] = $this->resolveSignedPdfStorage($signedPdf);
+            } elseif ($signedTempPath !== '' && $signedTempOriginalName !== '') {
+                $finalized = \App\Support\PublicFileUpload::finalizeTempToStableOrReuse(
+                    $signedTempPath,
+                    $signedTempOriginalName,
+                    'ict-request-signed',
+                    255
+                );
+                $signedPdfName = $finalized['name'] ?? null;
+                $signedPdfPath = $finalized['path'] ?? null;
             } else {
                 $signedPdfName = null;
                 $signedPdfPath = null;
+            }
+
+            if (! $signedPdfPath) {
+                return back()->withErrors([
+                    'signed_pdf' => 'File upload tidak ditemukan. Silakan pilih ulang file lalu upload kembali.',
+                ])->withInput();
             }
 
             $ictRequest->update([

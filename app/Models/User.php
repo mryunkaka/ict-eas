@@ -131,8 +131,7 @@ class User extends Authenticatable
 
     public function canAccessAssetHandovers(): bool
     {
-        // Asmen dan di atasnya: full akses lintas unit.
-        // Admin ICT juga tetap boleh akses sesuai kebutuhan operasional.
-        return $this->isAsmenIct() || $this->isManagerIct() || $this->isIctAdmin();
+        // Semua role yang sudah login boleh akses menu Serah Terima.
+        return true;
     }
 }
