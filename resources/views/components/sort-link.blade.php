@@ -16,7 +16,7 @@
 
     $classes = [
         'default' => 'inline-flex items-center gap-2 font-semibold text-ink-600 transition hover:text-ink-900',
-        'compact' => 'inline-flex items-center gap-2 text-[13px] font-semibold text-ink-600 transition hover:text-ink-900',
+        'compact' => 'inline-flex items-center gap-1.5 text-xs font-semibold text-ink-600 transition hover:text-ink-900',
     ];
 @endphp
 

@@ -8,12 +8,12 @@
 
     $labelTextClasses = [
         'default' => 'text-sm font-medium text-ink-700',
-        'compact' => 'text-[13px] font-semibold text-ink-700',
+        'compact' => 'text-xs font-semibold text-ink-700',
     ];
 
     $selectClasses = [
-        'default' => 'w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500',
-        'compact' => 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3.5 py-0 text-sm text-ink-900 outline-none transition focus:border-brand-500',
+        'default' => 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3.5 py-0 text-[13px] text-ink-900 outline-none transition focus:border-brand-500',
+        'compact' => 'h-8 w-full rounded-xl border border-ink-200 bg-white px-3 py-0 text-xs text-ink-900 outline-none transition focus:border-brand-500',
     ];
 @endphp
 

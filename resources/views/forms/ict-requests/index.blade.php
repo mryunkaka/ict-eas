@@ -495,6 +495,9 @@
                 ordering: false,
                 lengthChange: false,
                 pageLength: 10,
+                scrollX: true,
+                scrollY: '50vh',
+                scrollCollapse: true,
                 language: {
                     search: '',
                     searchPlaceholder: 'Cari data...',
@@ -546,12 +549,6 @@
                             Buat Permintaan
                         </x-button>
                     @endif
-                </div>
-            </div>
-
-            <div class="ui-page-filter-summary-wrap">
-                <div class="ui-page-filter-summary">
-                    Filter tanggal aktif: <span class="font-semibold text-ink-900">{{ $activeFilterRangeLabel }}</span>
                 </div>
             </div>
 

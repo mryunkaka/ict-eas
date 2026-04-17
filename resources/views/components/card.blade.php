@@ -7,9 +7,9 @@
         'danger' => 'border border-danger-100 bg-white',
     ];
 
-    $paddings = [
-        'default' => 'p-6',
-        'compact' => 'p-4',
+$paddings = [
+        'default' => 'p-5',
+        'compact' => 'p-3.5',
         'none' => 'p-0',
     ];
 @endphp
@@ -18,17 +18,17 @@
     @if ($title || $subtitle)
         <header>
             @if ($title)
-                <h3 class="font-display text-lg font-semibold text-ink-900">{{ $title }}</h3>
+                <h3 class="font-display text-base font-semibold text-ink-900">{{ $title }}</h3>
             @endif
 
             @if ($subtitle)
-                <p class="mt-1 text-sm text-ink-500">{{ $subtitle }}</p>
+                <p class="mt-1 text-[13px] text-ink-500">{{ $subtitle }}</p>
             @endif
         </header>
     @endif
 
     @if (trim($slot))
-        <div class="{{ $title || $subtitle ? 'mt-5' : '' }}">
+        <div class="{{ $title || $subtitle ? 'mt-4' : '' }}">
             {{ $slot }}
         </div>
     @endif

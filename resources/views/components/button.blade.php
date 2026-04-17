@@ -17,8 +17,8 @@
 
     $actionVariants = ['action-neutral', 'action-pdf', 'action-upload', 'action-approve', 'action-review', 'action-danger'];
     $sizes = [
-        'default' => 'rounded-2xl px-4 py-2.5 text-sm',
-        'compact' => 'rounded-xl px-3.5 py-2 text-[13px]',
+        'default' => 'rounded-xl px-3.5 py-2 text-[13px]',
+        'compact' => 'rounded-xl px-3 py-1.5 text-xs',
     ];
     $baseClasses = in_array($variant, $actionVariants, true)
         ? ''

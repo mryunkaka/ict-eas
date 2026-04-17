@@ -438,71 +438,100 @@
     }
 
     .ui-page-workspace {
-        @apply flex min-h-0 flex-1 flex-col gap-4;
+        @apply flex min-h-0 flex-1 flex-col gap-3 min-w-0;
     }
 
     .ui-page-workspace-card {
-        @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+        @apply flex min-h-0 flex-1 flex-col overflow-hidden min-w-0 w-full;
     }
 
     .ui-page-toolbar {
-        @apply flex flex-wrap items-end justify-between gap-3 border-b border-ink-100 p-4;
+        @apply flex flex-wrap items-end justify-between gap-2.5 border-b border-ink-100 p-3;
     }
 
     .ui-page-toolbar-form {
-        @apply grid gap-3 md:grid-cols-[148px_148px_auto];
+        @apply grid gap-2 md:grid-cols-[112px_112px_auto];
     }
 
     .ui-page-toolbar-actions {
-        @apply flex flex-wrap gap-2.5;
-    }
-
-    .ui-page-filter-summary-wrap {
-        @apply border-b border-ink-100 px-4 py-3;
-    }
-
-    .ui-page-filter-summary {
-        @apply rounded-xl border border-ink-100 bg-ink-50/80 px-3.5 py-2.5 text-[13px] text-ink-700;
+        @apply flex flex-wrap gap-2;
     }
 
     .ui-page-table-content {
-        @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+        @apply flex min-h-0 flex-1 flex-col overflow-hidden pb-3 min-w-0 w-full;
     }
 
     .ui-page-section-bar {
-        @apply border-b border-ink-100 px-4 py-3;
+        @apply border-b border-ink-100 px-3 py-2.5;
     }
 
     .ui-page-record-count {
-        @apply text-[13px] text-ink-600;
+        @apply text-xs text-ink-600;
     }
 
     .ui-page-danger-button {
-        @apply inline-flex items-center justify-center rounded-xl bg-danger-500 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:opacity-95;
+        @apply inline-flex items-center justify-center rounded-xl bg-danger-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-95;
     }
 
     .ui-datatable-shell {
-        @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+        @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden w-full bg-white rounded-2xl border border-ink-100/70 shadow-[0_4px_20px_-10px_rgba(17,32,51,0.1)];
+        margin: 0 0.5rem 0.75rem 0.5rem;
+        width: auto;
     }
 
     .ui-datatable-shell .dt-container {
-        @apply flex h-full min-h-0 flex-col;
+        @apply flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-0 w-full;
+        max-width: 100%;
     }
 
     .ui-datatable-shell .dt-layout-row {
-        @apply m-0 flex-none items-center gap-3 px-4 py-3;
+        @apply m-0 flex-none items-center gap-2 px-3 py-2 w-full border-b border-ink-100/50 bg-ink-50/30;
     }
 
     .ui-datatable-shell .dt-layout-table {
-        @apply min-h-0 flex-1 overflow-auto p-0;
+        @apply min-h-0 min-w-0 flex-1 px-0 pb-0 pt-0 w-full flex flex-col overflow-hidden;
+        max-width: 100%;
     }
 
     .ui-datatable-shell .dt-layout-table .dt-layout-cell {
-        min-width: max-content;
+        @apply flex-1 w-full h-full flex flex-col overflow-hidden;
+        min-width: 0;
+        min-height: 0;
+        max-width: 100%;
     }
 
+    .ui-datatable-shell .dt-scroll {
+        @apply flex-1 flex flex-col min-h-0 overflow-hidden;
+    }
+
+    .ui-datatable-shell .dt-scroll-body {
+        @apply flex-1 min-h-0 border-b border-ink-100/50 !overflow-auto;
+    }
+
+    /* Datatables Scroll Styles */
+    .dt-scroll-body {
+        @apply border-b border-ink-100;
+    }
+
+    .dt-scroll-body::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .dt-scroll-body::-webkit-scrollbar-thumb {
+        background: rgba(159, 36, 49, 0.22);
+        border-radius: 999px;
+    }
+
+    .dt-scroll-headInner, 
+    .dt-scroll-headInner table {
+        @apply !w-full;
+    }
+
+
+
     .ui-datatable-shell .dt-search input {
-        @apply m-0 h-10 w-[clamp(14rem,22vw,20rem)] rounded-xl border border-ink-200 bg-ink-50/90 px-4 text-sm text-ink-900 outline-none shadow-none;
+        @apply m-0 h-7 w-[clamp(7rem,11vw,10rem)] rounded-xl border border-ink-200 bg-ink-50/90 px-2.5 text-[11px] text-ink-900 outline-none shadow-none;
     }
 
     .ui-datatable-shell .dt-search input:focus {
@@ -510,7 +539,7 @@
     }
 
     .ui-datatable-shell .dt-paging .dt-paging-button {
-        @apply mx-0.5 h-8 min-w-8 rounded-xl border border-ink-200 px-2 py-1 text-[13px];
+        @apply mx-0.5 h-6 min-w-6 rounded-md border border-ink-200 px-1.5 py-0.5 text-[11px];
     }
 
     .ui-datatable-shell .dt-paging .dt-paging-button.current,
@@ -521,11 +550,37 @@
     }
 
     .ui-datatable-shell .dt-info {
-        @apply p-0 text-[13px] text-ink-500;
+        @apply p-0 text-xs text-ink-500;
     }
 
+    .ui-datatable-shell .dt-scroll-body table {
+        @apply !w-full !max-w-none;
+    }
+
+    .ui-datatable-shell .dt-scroll-head table {
+        @apply !mb-0;
+    }
+
+    /* FIX: Double Thead issue */
+    .ui-datatable-shell .dt-scroll-body thead {
+        display: none !important;
+    }
+    
+    .ui-datatable-shell .dt-scroll-body thead tr,
+    .ui-datatable-shell .dt-scroll-body thead th,
+    .ui-datatable-shell .dt-scroll-body thead td {
+        height: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        border: none !important;
+        line-height: 0 !important;
+        overflow: hidden !important;
+    }
+
+
+
     .ui-table-compact {
-        @apply min-w-full w-max divide-y divide-ink-100 text-sm;
+        @apply min-w-full w-max divide-y divide-ink-100 text-[12px];
     }
 
     .ui-table-compact thead {
@@ -533,11 +588,11 @@
     }
 
     .ui-table-compact th {
-        @apply px-3 py-2.5 text-[13px] font-semibold;
+        @apply px-2 py-1.5 text-[11px] font-semibold align-middle;
     }
 
     .ui-table-compact td {
-        @apply px-3 py-2.5 align-top;
+        @apply px-2 py-1.5 align-top leading-5;
     }
 
     .ui-table-cell-nowrap {
@@ -545,9 +600,9 @@
     }
 
     .ui-table-cell-fixed-wide {
-        width: 20rem;
-        min-width: 20rem;
-        max-width: 20rem;
+        width: 14rem;
+        min-width: 14rem;
+        max-width: 14rem;
     }
 
     .ui-table-cell-wrap {
@@ -556,15 +611,25 @@
     }
 
     .ui-action-row.ui-action-row--compact {
-        @apply gap-2;
+        @apply gap-1;
     }
 
     .ui-action-row--compact .ui-action-button {
-        @apply h-9 w-9 rounded-[0.85rem];
+        @apply h-7 w-7 rounded-[0.65rem];
     }
 
     .ui-action-row--compact .ui-action-icon {
-        @apply h-4 w-4;
+        @apply h-3 w-3;
+    }
+
+    .ui-datatable-shell .dt-layout-table::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .ui-datatable-shell .dt-layout-table::-webkit-scrollbar-thumb {
+        background: rgba(159, 36, 49, 0.22);
+        border-radius: 999px;
     }
 
     /* =====================================================
@@ -615,7 +680,7 @@
      * ===================================================== */
 
     div.dt-container {
-        padding: 1rem 1.5rem 0;
+        padding: 0;
     }
 
     /* Top row (search bar row) */
@@ -623,8 +688,8 @@
         display: flex;
         align-items: center;
         justify-content: flex-end;
-        gap: 1rem;
-        margin-bottom: 1rem;
+        gap: 0.75rem;
+        margin-bottom: 0;
     }
 
     /* =====================================================
@@ -640,26 +705,26 @@
     }
 
     div.dt-container .dt-search input {
-        height: 2.5rem;
-        width: 16rem;
-        border-radius: 1rem;
+        height: 1.875rem;
+        width: 10rem;
+        border-radius: 0.75rem;
         border: 1px solid #d4dde8;
         background: #f6f8fb;
-        padding: 0 1rem;
-        font-size: 0.875rem;
+        padding: 0 0.75rem;
+        font-size: 0.73rem;
         color: #112033;
         outline: none;
         transition: all 150ms ease;
     }
 
     div.dt-container .dt-search input::placeholder {
-        color: rgba(88, 112, 143, 0.7);
+        color: rgba(88, 112, 143, 0.65);
     }
 
     div.dt-container .dt-search input:focus {
         border-color: #9f2431;
         background: #fff;
-        box-shadow: 0 0 0 3px rgba(159, 36, 49, 0.12);
+        box-shadow: 0 0 0 2px rgba(159, 36, 49, 0.1);
     }
 
     #monitoring-pp-table_wrapper .dt-layout-row {
@@ -702,9 +767,9 @@
         display: flex;
         align-items: center;
         justify-content: flex-end;
-        gap: 0.25rem;
+        gap: 0.2rem;
         margin-top: 0 !important;
-        padding: 0.75rem 1.5rem;
+        padding: 0.4rem 0.75rem;
         background: linear-gradient(180deg, #f3f5f9 0%, #edf0f6 100%);
         border-top: 1px solid #e8edf4;
         border-radius: 0 0 1.5rem 1.5rem;
@@ -718,12 +783,12 @@
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
-        height: 2rem !important;
-        min-width: 2rem !important;
-        padding: 0 0.35rem !important;
-        border-radius: 0.6rem !important;
+        height: 1.625rem !important;
+        min-width: 1.625rem !important;
+        padding: 0 0.25rem !important;
+        border-radius: 0.45rem !important;
         border: 1px solid transparent !important;
-        font-size: 0.8125rem !important;
+        font-size: 0.72rem !important;
         font-weight: 600 !important;
         color: #58708f !important;
         cursor: pointer !important;
