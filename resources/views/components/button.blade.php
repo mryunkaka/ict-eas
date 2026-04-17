@@ -1,4 +1,4 @@
-@props(['variant' => 'primary', 'type' => 'button', 'href' => null])
+@props(['variant' => 'primary', 'type' => 'button', 'href' => null, 'size' => 'default'])
 
 @php
     $variants = [
@@ -16,9 +16,13 @@
     ];
 
     $actionVariants = ['action-neutral', 'action-pdf', 'action-upload', 'action-approve', 'action-review', 'action-danger'];
+    $sizes = [
+        'default' => 'rounded-2xl px-4 py-2.5 text-sm',
+        'compact' => 'rounded-xl px-3.5 py-2 text-[13px]',
+    ];
     $baseClasses = in_array($variant, $actionVariants, true)
         ? ''
-        : 'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-2xl px-4 py-2.5 text-sm font-semibold transition';
+        : 'inline-flex shrink-0 items-center justify-center whitespace-nowrap font-semibold transition '.($sizes[$size] ?? $sizes['default']);
 @endphp
 
 @if ($href)

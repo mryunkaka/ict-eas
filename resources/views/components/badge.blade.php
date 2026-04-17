@@ -1,4 +1,4 @@
-@props(['variant' => 'default'])
+@props(['variant' => 'default', 'size' => 'default'])
 
 @php
     $variants = [
@@ -7,8 +7,13 @@
         'warning' => 'bg-accent-100 text-accent-500',
         'danger' => 'bg-danger-100 text-danger-500',
     ];
+
+    $sizes = [
+        'default' => 'px-3 py-1 text-xs',
+        'compact' => 'px-2.5 py-1 text-[11px]',
+    ];
 @endphp
 
-<span {{ $attributes->class(['inline-flex rounded-full px-3 py-1 text-xs font-semibold', $variants[$variant] ?? $variants['default']]) }}>
+<span {{ $attributes->class(['inline-flex rounded-full font-semibold', $sizes[$size] ?? $sizes['default'], $variants[$variant] ?? $variants['default']]) }}>
     {{ $slot }}
 </span>

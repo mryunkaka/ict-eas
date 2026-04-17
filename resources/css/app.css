@@ -291,6 +291,10 @@
         @apply flex min-h-0 flex-1 flex-col overflow-y-auto;
     }
 
+    .ui-admin-scroll.is-page-scroll-locked {
+        @apply overflow-hidden;
+    }
+
     .ui-admin-header {
         @apply shrink-0 border-b border-ink-100 bg-white;
     }
@@ -337,8 +341,21 @@
         @apply shrink-0 px-4 py-5 sm:px-6 lg:px-8 lg:py-6;
     }
 
+    .ui-admin-content.is-page-scroll-locked,
+    .ui-admin-content-inner.is-page-scroll-locked {
+        @apply flex min-h-0 flex-1;
+    }
+
+    .ui-admin-content.is-page-scroll-locked {
+        @apply py-4;
+    }
+
     .ui-admin-content-inner {
         @apply mx-auto w-full max-w-[110rem] pb-12;
+    }
+
+    .ui-admin-content-inner.is-page-scroll-locked {
+        @apply pb-0;
     }
 
     .ui-dashboard-hero {
@@ -408,6 +425,136 @@
 
     .ui-modal-panel {
         @apply rounded-[2rem] border border-ink-100 bg-white p-6 shadow-[0_25px_80px_rgba(15,23,42,0.18)];
+    }
+
+    .ui-page-workspace {
+        @apply flex min-h-0 flex-1 flex-col gap-4;
+    }
+
+    .ui-page-workspace-card {
+        @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+    }
+
+    .ui-page-toolbar {
+        @apply flex flex-wrap items-end justify-between gap-3 border-b border-ink-100 p-4;
+    }
+
+    .ui-page-toolbar-form {
+        @apply grid gap-3 md:grid-cols-[148px_148px_auto];
+    }
+
+    .ui-page-toolbar-actions {
+        @apply flex flex-wrap gap-2.5;
+    }
+
+    .ui-page-filter-summary-wrap {
+        @apply border-b border-ink-100 px-4 py-3;
+    }
+
+    .ui-page-filter-summary {
+        @apply rounded-xl border border-ink-100 bg-ink-50/80 px-3.5 py-2.5 text-[13px] text-ink-700;
+    }
+
+    .ui-page-table-content {
+        @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+    }
+
+    .ui-page-section-bar {
+        @apply border-b border-ink-100 px-4 py-3;
+    }
+
+    .ui-page-record-count {
+        @apply text-[13px] text-ink-600;
+    }
+
+    .ui-page-danger-button {
+        @apply inline-flex items-center justify-center rounded-xl bg-danger-500 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:opacity-95;
+    }
+
+    .ui-datatable-shell {
+        @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+    }
+
+    .ui-datatable-shell .dt-container {
+        @apply flex h-full min-h-0 flex-col;
+    }
+
+    .ui-datatable-shell .dt-layout-row {
+        @apply m-0 flex-none items-center gap-3 px-4 py-3;
+    }
+
+    .ui-datatable-shell .dt-layout-table {
+        @apply min-h-0 flex-1 overflow-auto p-0;
+    }
+
+    .ui-datatable-shell .dt-layout-table .dt-layout-cell {
+        min-width: max-content;
+    }
+
+    .ui-datatable-shell .dt-search input {
+        @apply m-0 h-10 w-[clamp(14rem,22vw,20rem)] rounded-xl border border-ink-200 bg-ink-50/90 px-4 text-sm text-ink-900 outline-none shadow-none;
+    }
+
+    .ui-datatable-shell .dt-search input:focus {
+        @apply border-brand-500;
+    }
+
+    .ui-datatable-shell .dt-paging .dt-paging-button {
+        @apply mx-0.5 h-8 min-w-8 rounded-xl border border-ink-200 px-2 py-1 text-[13px];
+    }
+
+    .ui-datatable-shell .dt-paging .dt-paging-button.current,
+    .ui-datatable-shell .dt-paging .dt-paging-button.current:hover {
+        border-color: #112033 !important;
+        background: #112033 !important;
+        color: #fff !important;
+    }
+
+    .ui-datatable-shell .dt-info {
+        @apply p-0 text-[13px] text-ink-500;
+    }
+
+    .ui-table-compact {
+        @apply min-w-full w-max divide-y divide-ink-100 text-sm;
+    }
+
+    .ui-table-compact thead {
+        @apply bg-ink-50 text-left text-ink-500;
+    }
+
+    .ui-table-compact th {
+        @apply px-3 py-2.5 text-[13px] font-semibold;
+    }
+
+    .ui-table-compact td {
+        @apply px-3 py-2.5 align-top;
+    }
+
+    .ui-table-cell-nowrap {
+        white-space: nowrap;
+    }
+
+    .ui-table-cell-fixed-wide {
+        width: 20rem;
+        min-width: 20rem;
+        max-width: 20rem;
+    }
+
+    .ui-table-cell-wrap {
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .ui-action-row.ui-action-row--compact {
+        @apply gap-2;
+    }
+
+    .ui-action-row--compact .ui-action-button {
+        @apply h-9 w-9 rounded-[0.85rem];
+    }
+
+    .ui-action-row--compact .ui-action-icon {
+        @apply h-4 w-4;
     }
 
     /* =====================================================

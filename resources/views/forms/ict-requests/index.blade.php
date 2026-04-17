@@ -6,7 +6,7 @@
             ->map(fn ($quotation) => [
                 'vendor_name' => $quotation->vendor_name,
                 'attachment_name' => $quotation->attachment_name,
-                'attachment_url' => $quotation->attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($quotation->attachment_path) : null,
+                'attachment_url' => $quotation->attachment_path ? \Illuminate\Support\Facades\Storage::url($quotation->attachment_path) : null,
                 'is_image' => str_starts_with((string) $quotation->attachment_mime, 'image/'),
             ])
             ->all();
@@ -61,11 +61,11 @@
             'quotation_mode' => $request->quotation_mode,
             'created_at' => optional($request->created_at)->format('d M Y H:i'),
             'final_signed_pdf_name' => $request->final_signed_pdf_name,
-            'final_signed_pdf_url' => $request->final_signed_pdf_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($request->final_signed_pdf_path) : null,
+            'final_signed_pdf_url' => $request->final_signed_pdf_path ? \Illuminate\Support\Facades\Storage::url($request->final_signed_pdf_path) : null,
             'rejected_reason' => $request->rejected_reason,
             'revision_note' => $request->revision_note,
             'revision_attachment_name' => $request->revision_attachment_name,
-            'revision_attachment_url' => $request->revision_attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($request->revision_attachment_path) : null,
+            'revision_attachment_url' => $request->revision_attachment_path ? \Illuminate\Support\Facades\Storage::url($request->revision_attachment_path) : null,
             'staff_ict' => $staffIct ? [
                 'name' => $staffIct->name,
                 'position' => $staffIct->job_title ?? $staffIct->role?->label() ?? 'Staff ICT',
@@ -95,18 +95,18 @@
                 'total_estimated_price' => ((float) ($item->estimated_price ?? 0)) * ((int) ($item->quantity ?? 0)),
                 'notes' => $item->notes,
                 'photo_name' => $item->photo_name,
-                'photo_url' => $item->photo_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($item->photo_path) : null,
+                'photo_url' => $item->photo_path ? \Illuminate\Support\Facades\Storage::url($item->photo_path) : null,
                 'ppnk_number' => $item->ppnkDocument?->ppnk_number,
                 'ppnk_attachment_name' => $item->ppnkDocument?->attachment_name,
-                'ppnk_attachment_url' => $item->ppnkDocument?->attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($item->ppnkDocument->attachment_path) : null,
+                'ppnk_attachment_url' => $item->ppnkDocument?->attachment_path ? \Illuminate\Support\Facades\Storage::url($item->ppnkDocument->attachment_path) : null,
                 'ppnk_attachment_is_image' => str_starts_with((string) $item->ppnkDocument?->attachment_mime, 'image/'),
                 'ppm_number' => $item->ppmDocument?->ppm_number,
                 'ppm_attachment_name' => $item->ppmDocument?->attachment_name,
-                'ppm_attachment_url' => $item->ppmDocument?->attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($item->ppmDocument->attachment_path) : null,
+                'ppm_attachment_url' => $item->ppmDocument?->attachment_path ? \Illuminate\Support\Facades\Storage::url($item->ppmDocument->attachment_path) : null,
                 'ppm_attachment_is_image' => str_starts_with((string) $item->ppmDocument?->attachment_mime, 'image/'),
                 'po_number' => $item->poDocument?->po_number,
                 'po_attachment_name' => $item->poDocument?->attachment_name,
-                'po_attachment_url' => $item->poDocument?->attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($item->poDocument->attachment_path) : null,
+                'po_attachment_url' => $item->poDocument?->attachment_path ? \Illuminate\Support\Facades\Storage::url($item->poDocument->attachment_path) : null,
                 'po_attachment_is_image' => str_starts_with((string) $item->poDocument?->attachment_mime, 'image/'),
                 'pr_number' => $item->pr_number,
                 'audit_status' => $item->audit_status,
@@ -115,7 +115,7 @@
                 'quotations' => $item->quotations->map(fn ($quotation) => [
                     'vendor_name' => $quotation->vendor_name,
                     'attachment_name' => $quotation->attachment_name,
-                    'attachment_url' => $quotation->attachment_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($quotation->attachment_path) : null,
+                    'attachment_url' => $quotation->attachment_path ? \Illuminate\Support\Facades\Storage::url($quotation->attachment_path) : null,
                     'is_image' => str_starts_with((string) $quotation->attachment_mime, 'image/'),
                 ])->all(),
             ])->all(),
@@ -473,6 +473,15 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            const pageRoot = document.querySelector('.ui-page-workspace');
+            const adminScroll = pageRoot?.closest('.ui-admin-scroll');
+            const adminContent = pageRoot?.closest('.ui-admin-content');
+            const adminContentInner = pageRoot?.closest('.ui-admin-content-inner');
+
+            [adminScroll, adminContent, adminContentInner].forEach((element) => {
+                element?.classList.add('is-page-scroll-locked');
+            });
+
             const tableElement = document.getElementById('ict-requests-table');
 
             if (!tableElement || typeof window.DataTable === 'undefined') {
@@ -503,57 +512,52 @@
     </script>
     <div
         x-data="ictRequestsData()"
-        class="space-y-6"
+        class="ui-page-workspace"
     >
         @if (session('status'))
             <x-alert>{{ session('status') }}</x-alert>
         @endif
 
-        <x-card>
-            <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                <form method="GET" class="grid gap-4 md:grid-cols-[160px_160px_auto]">
-                    <label class="block space-y-2">
-                        <span class="text-sm font-medium text-ink-700">Dari</span>
-                        <input name="from" value="{{ $filters['from'] }}" type="date" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500" />
-                    </label>
-
-                    <label class="block space-y-2">
-                        <span class="text-sm font-medium text-ink-700">Sampai</span>
-                        <input name="until" value="{{ $filters['until'] }}" type="date" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500" />
-                    </label>
+        <x-card padding="none" class="ui-page-workspace-card">
+            <div class="ui-page-toolbar">
+                <form method="GET" class="ui-page-toolbar-form">
+                    <x-input name="from" label="Dari" type="date" :value="$filters['from']" size="compact" />
+                    <x-input name="until" label="Sampai" type="date" :value="$filters['until']" size="compact" />
 
                     <div class="flex items-end gap-2">
-                        <x-button type="submit">
+                        <x-button type="submit" size="compact">
                             Terapkan
                         </x-button>
-                        <x-button :href="route('forms.ict-requests.index')" variant="secondary">
+                        <x-button :href="route('forms.ict-requests.index')" variant="secondary" size="compact">
                             <x-heroicon-o-arrow-path class="mr-2 h-4 w-4" />
                             Reset
                         </x-button>
                     </div>
                 </form>
 
-                <div class="flex flex-wrap gap-3">
-                    <x-button :href="route('forms.ict-requests.export', request()->query())" variant="secondary">
+                <div class="ui-page-toolbar-actions">
+                    <x-button :href="route('forms.ict-requests.export', request()->query())" variant="secondary" size="compact">
                         <x-heroicon-o-arrow-down-tray class="mr-2 h-4 w-4" />
                         Export Excel
                     </x-button>
                     @if (auth()->user()->canCreateIctRequest())
-                        <x-button :href="route('forms.ict-requests.create')">
+                        <x-button :href="route('forms.ict-requests.create')" size="compact">
                             <x-heroicon-o-plus class="mr-2 h-4 w-4" />
                             Buat Permintaan
                         </x-button>
                     @endif
                 </div>
             </div>
-            <div class="mt-4 rounded-2xl border border-ink-100 bg-ink-50/80 px-4 py-3 text-sm text-ink-700">
-                Filter tanggal aktif: <span class="font-semibold text-ink-900">{{ $activeFilterRangeLabel }}</span>
-            </div>
-        </x-card>
 
-	        <div class="overflow-hidden rounded-3xl border border-ink-100 bg-white/90 shadow-[0_20px_50px_-30px_rgba(17,32,51,0.35)]">
+            <div class="ui-page-filter-summary-wrap">
+                <div class="ui-page-filter-summary">
+                    Filter tanggal aktif: <span class="font-semibold text-ink-900">{{ $activeFilterRangeLabel }}</span>
+                </div>
+            </div>
+
+            <div class="ui-page-table-content">
 	            @if (auth()->user()->canCreateIctRequest())
-	                <form method="POST" action="{{ route('forms.ict-requests.bulk-destroy') }}" class="border-b border-ink-100 p-4" x-on:submit="if (!selectAllMatching && selectedIds.length === 0) { $event.preventDefault(); } else if (!confirm('Hapus data yang dipilih?')) { $event.preventDefault(); }">
+	                <form method="POST" action="{{ route('forms.ict-requests.bulk-destroy') }}" class="ui-page-section-bar" x-on:submit="if (!selectAllMatching && selectedIds.length === 0) { $event.preventDefault(); } else if (!confirm('Hapus data yang dipilih?')) { $event.preventDefault(); }">
 	                    @csrf
 	                    @method('DELETE')
 	                    <input type="hidden" name="from" value="{{ $filters['from'] }}">
@@ -567,7 +571,7 @@
 	                    </template>
 
 	                    <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-700" x-cloak x-show="selectedIds.length > 0 || selectAllMatching">
-	                        <button type="submit" class="inline-flex items-center justify-center rounded-2xl bg-danger-500 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95">
+	                        <button type="submit" class="ui-page-danger-button">
 	                            <x-heroicon-o-trash class="mr-2 h-4 w-4" />
 	                            Delete selected
 	                        </button>
@@ -586,53 +590,53 @@
 	                        </div>
 	                    </div>
 
-	                    <div class="text-sm text-ink-600" x-cloak x-show="selectedIds.length === 0 && !selectAllMatching">
+	                    <div class="ui-page-record-count" x-cloak x-show="selectedIds.length === 0 && !selectAllMatching">
 	                        Total {{ $requests->count() }} data
 	                    </div>
 	                </form>
 	            @else
-	                <div class="border-b border-ink-100 p-4 text-sm text-ink-600">
+	                <div class="ui-page-section-bar ui-page-record-count">
 	                    Total {{ $requests->count() }} data
 	                </div>
 	            @endif
 
-	            <div class="overflow-x-auto">
-	                <table id="ict-requests-table" class="min-w-full w-max divide-y divide-ink-100 text-sm">
-	                    <thead class="bg-ink-50 text-left text-ink-500">
+	            <div class="ui-datatable-shell">
+	                <table id="ict-requests-table" class="ui-table-compact">
+	                    <thead>
 	                        <tr>
-	                            <th class="px-4 py-3">
+	                            <th>
 	                                <label class="inline-flex items-center gap-2">
 	                                    <input type="checkbox" :checked="allSelectedOnPage" x-on:change="togglePageSelection($event)" class="rounded border-ink-300 text-ink-900 focus:ring-ink-400" />
 	                                    <span class="sr-only">Pilih semua</span>
 	                                </label>
 	                            </th>
-	                            <th class="px-4 py-3 whitespace-nowrap">
-	                                <x-sort-link column="created_at" label="Tanggal" :sort="$sort" :direction="$direction" />
+	                            <th class="ui-table-cell-nowrap">
+	                                <x-sort-link column="created_at" label="Tanggal" :sort="$sort" :direction="$direction" size="compact" />
 	                            </th>
-	                            <th class="px-4 py-3 whitespace-nowrap">
-	                                <x-sort-link column="subject" label="Subject" :sort="$sort" :direction="$direction" />
+	                            <th class="ui-table-cell-nowrap">
+	                                <x-sort-link column="subject" label="Subject" :sort="$sort" :direction="$direction" size="compact" />
 	                            </th>
-	                            <th class="px-4 py-3 whitespace-nowrap">Pemohon</th>
-	                            <th class="px-4 py-3 whitespace-nowrap">Dept</th>
-	                            <th class="px-4 py-3">
-	                                <x-sort-link column="priority" label="Prioritas" :sort="$sort" :direction="$direction" />
+	                            <th class="ui-table-cell-nowrap">Pemohon</th>
+	                            <th class="ui-table-cell-nowrap">Dept</th>
+	                            <th>
+	                                <x-sort-link column="priority" label="Prioritas" :sort="$sort" :direction="$direction" size="compact" />
 	                            </th>
-	                            <th class="px-4 py-3">Alasan kebutuhan</th>
-	                            <th class="px-4 py-3 whitespace-nowrap">
-	                                <x-sort-link column="status" label="Status" :sort="$sort" :direction="$direction" />
+	                            <th class="ui-table-cell-fixed-wide">Alasan kebutuhan</th>
+	                            <th class="ui-table-cell-nowrap">
+	                                <x-sort-link column="status" label="Status" :sort="$sort" :direction="$direction" size="compact" />
 	                            </th>
-	                            <th class="px-4 py-3 text-right">Aksi</th>
+	                            <th class="text-right">Aksi</th>
 	                        </tr>
 	                    </thead>
 	                    <tbody class="divide-y divide-ink-100">
 	                    @foreach ($requests as $request)
-	                        <tr class="align-top">
-                            <td class="px-4 py-3">
+	                        <tr>
+                            <td>
                                 <input type="checkbox" value="{{ $request->id }}" x-model="selectedIds" class="rounded border-ink-300 text-ink-900 focus:ring-ink-400" />
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ $request->created_at?->format('d M Y') }}</td>
-                            <td class="px-4 py-3">
-                                <div class="font-semibold text-ink-900 whitespace-nowrap">{{ $request->subject }}</div>
+                            <td class="ui-table-cell-nowrap">{{ $request->created_at?->format('d M Y') }}</td>
+                            <td>
+                                <div class="ui-table-cell-nowrap font-semibold text-ink-900">{{ $request->subject }}</div>
                                 @if ($request->rejected_reason || $request->revision_note)
                                     <div class="mt-3 space-y-2 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-ink-700">
                                         @if ($request->rejected_reason)
@@ -650,22 +654,22 @@
                                     </div>
                                 @endif
                                 @if ($request->revision_attachment_path)
-                                    <a href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($request->revision_attachment_path) }}" target="_blank" class="mt-3 block">
+                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($request->revision_attachment_path) }}" target="_blank" class="mt-3 block">
                                         <img
-                                            src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($request->revision_attachment_path) }}"
+                                            src="{{ \Illuminate\Support\Facades\Storage::url($request->revision_attachment_path) }}"
                                             alt="{{ $request->revision_attachment_name ?: 'Lampiran revisi' }}"
                                             class="h-20 w-28 rounded-2xl border border-amber-200 object-cover shadow-sm"
                                         />
                                     </a>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ $request->requesterDisplayName() }}</td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ $request->departmentDisplayName() }}</td>
-                            <td class="px-4 py-3"><x-badge variant="{{ $request->priority === 'urgent' ? 'warning' : 'default' }}">{{ strtoupper($request->priority) }}</x-badge></td>
-                            <td class="px-4 py-3">{{ \Illuminate\Support\Str::limit($request->justification, 140) }}</td>
-                            <td class="px-4 py-3 whitespace-nowrap"><x-badge variant="{{ in_array($request->status, ['progress_ppnk'], true) || ($request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path) ? 'warning' : 'success' }}">{{ $request->statusLabel() }}</x-badge></td>
-                            <td class="px-4 py-3">
-                                <div class="ui-action-row justify-end">
+                            <td class="ui-table-cell-nowrap">{{ $request->requesterDisplayName() }}</td>
+                            <td class="ui-table-cell-nowrap">{{ $request->departmentDisplayName() }}</td>
+                            <td><x-badge size="compact" variant="{{ $request->priority === 'urgent' ? 'warning' : 'default' }}">{{ strtoupper($request->priority) }}</x-badge></td>
+                            <td class="ui-table-cell-fixed-wide ui-table-cell-wrap">{{ \Illuminate\Support\Str::limit($request->justification, 180) }}</td>
+                            <td class="ui-table-cell-nowrap"><x-badge size="compact" variant="{{ in_array($request->status, ['progress_ppnk'], true) || ($request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path) ? 'warning' : 'success' }}">{{ $request->statusLabel() }}</x-badge></td>
+                            <td>
+                                <div class="ui-action-row ui-action-row--compact justify-end">
                                     <x-button type="button" variant="action-neutral" x-on:click="openDetail('{{ $request->id }}')" title="Lihat detail">
                                         <x-heroicon-o-eye class="ui-action-icon" />
                                     </x-button>
@@ -759,8 +763,8 @@
                     </tbody>
                 </table>
             </div>
-
-	        </div>
+        </div>
+        </x-card>
 
         <div
             x-show="openDetailId"

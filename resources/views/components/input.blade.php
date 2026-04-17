@@ -1,8 +1,30 @@
-@props(['label' => null, 'name', 'type' => 'text', 'hint' => null, 'value' => null, 'bag' => 'default'])
+@props(['label' => null, 'name', 'type' => 'text', 'hint' => null, 'value' => null, 'bag' => 'default', 'size' => 'default'])
 
-<label class="block space-y-2">
+@php
+    $labelClasses = [
+        'default' => 'block space-y-2',
+        'compact' => 'block space-y-1.5',
+    ];
+
+    $labelTextClasses = [
+        'default' => 'text-sm font-medium text-ink-700',
+        'compact' => 'text-[13px] font-semibold text-ink-700',
+    ];
+
+    $inputClasses = [
+        'default' => 'w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none ring-0 transition placeholder:text-ink-500 focus:border-brand-500',
+        'compact' => 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3.5 py-0 text-sm text-ink-900 outline-none ring-0 transition placeholder:text-ink-500 focus:border-brand-500',
+    ];
+
+    $passwordInputClasses = [
+        'default' => 'w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 pr-12 text-sm text-ink-900 outline-none ring-0 transition placeholder:text-ink-500 focus:border-brand-500',
+        'compact' => 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3.5 py-0 pr-12 text-sm text-ink-900 outline-none ring-0 transition placeholder:text-ink-500 focus:border-brand-500',
+    ];
+@endphp
+
+<label class="{{ $labelClasses[$size] ?? $labelClasses['default'] }}">
     @if ($label)
-        <span class="text-sm font-medium text-ink-700">{{ $label }}</span>
+        <span class="{{ $labelTextClasses[$size] ?? $labelTextClasses['default'] }}">{{ $label }}</span>
     @endif
 
     @if ($type === 'password')
@@ -11,7 +33,7 @@
                 name="{{ $name }}"
                 x-bind:type="reveal ? 'text' : 'password'"
                 value="{{ old($name, $value) }}"
-                {{ $attributes->class(['w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 pr-12 text-sm text-ink-900 outline-none ring-0 transition placeholder:text-ink-500 focus:border-brand-500']) }}
+                {{ $attributes->class([$passwordInputClasses[$size] ?? $passwordInputClasses['default']]) }}
             />
 
             <button
@@ -37,7 +59,7 @@
             name="{{ $name }}"
             type="{{ $type }}"
             value="{{ old($name, $value) }}"
-            {{ $attributes->class(['w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none ring-0 transition placeholder:text-ink-500 focus:border-brand-500']) }}
+            {{ $attributes->class([$inputClasses[$size] ?? $inputClasses['default']]) }}
         />
     @endif
 

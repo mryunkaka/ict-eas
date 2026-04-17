@@ -3,6 +3,7 @@
     'label',
     'sort' => null,
     'direction' => 'asc',
+    'size' => 'default',
 ])
 
 @php
@@ -12,9 +13,14 @@
         'sort' => $column,
         'direction' => $nextDirection,
     ]);
+
+    $classes = [
+        'default' => 'inline-flex items-center gap-2 font-semibold text-ink-600 transition hover:text-ink-900',
+        'compact' => 'inline-flex items-center gap-2 text-[13px] font-semibold text-ink-600 transition hover:text-ink-900',
+    ];
 @endphp
 
-<a href="{{ url()->current().'?'.http_build_query($query) }}" class="inline-flex items-center gap-2 font-semibold text-ink-600 transition hover:text-ink-900">
+<a href="{{ url()->current().'?'.http_build_query($query) }}" class="{{ $classes[$size] ?? $classes['default'] }}">
     <span>{{ $label }}</span>
     @if ($isActive && $direction === 'asc')
         <x-heroicon-o-chevron-up class="h-4 w-4" />

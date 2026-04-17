@@ -1,4 +1,4 @@
-@props(['title' => null, 'subtitle' => null, 'variant' => 'default'])
+@props(['title' => null, 'subtitle' => null, 'variant' => 'default', 'padding' => 'default'])
 
 @php
     $variants = [
@@ -6,9 +6,15 @@
         'soft' => 'border border-brand-100 bg-brand-50/70',
         'danger' => 'border border-danger-100 bg-white',
     ];
+
+    $paddings = [
+        'default' => 'p-6',
+        'compact' => 'p-4',
+        'none' => 'p-0',
+    ];
 @endphp
 
-<article {{ $attributes->class(['rounded-3xl p-6', $variants[$variant] ?? $variants['default']]) }}>
+<article {{ $attributes->class(['rounded-3xl', $paddings[$padding] ?? $paddings['default'], $variants[$variant] ?? $variants['default']]) }}>
     @if ($title || $subtitle)
         <header>
             @if ($title)
