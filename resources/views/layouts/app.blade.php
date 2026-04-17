@@ -34,6 +34,7 @@
                 $user->canManageUsers() ? ['label' => 'User Management', 'route' => 'tools.users.index', 'active' => request()->routeIs('tools.users.*'), 'icon' => 'heroicon-o-users'] : null,
 	                $user->canManageUsers() ? ['label' => 'Ping Server', 'route' => 'tools.ping.index', 'active' => request()->routeIs('tools.ping.*'), 'icon' => 'heroicon-o-server-stack'] : null,
 	                $user->canManageUsers() ? ['label' => 'DB Connection', 'route' => 'tools.db-connection.index', 'active' => request()->routeIs('tools.db-connection.*'), 'icon' => 'heroicon-o-circle-stack'] : null,
+                    $user->canManageUsers() ? ['label' => 'SQL Sync', 'route' => 'tools.sql-sync.index', 'active' => request()->routeIs('tools.sql-sync.*'), 'icon' => 'heroicon-o-arrow-down-tray'] : null,
 	            ]));
 
 	            $pageTitle = match (true) {
@@ -52,6 +53,7 @@
 	                request()->routeIs('tools.users.*') => 'User Management',
 	                request()->routeIs('tools.ping.*') => 'Ping Server',
 	                request()->routeIs('tools.db-connection.*') => 'DB Connection',
+                    request()->routeIs('tools.sql-sync.*') => 'SQL Sync',
 	                request()->routeIs('profile.*') => 'Profil Pengguna',
 	                default => 'ICT EAS Workspace',
 	            };

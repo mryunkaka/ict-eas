@@ -28,6 +28,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Tools\PingServerController;
 use App\Http\Controllers\Tools\DbConnectionController;
+use App\Http\Controllers\Tools\SqlSyncController;
 use App\Http\Controllers\Tools\UserManagementController;
 
 Route::redirect('/', '/login');
@@ -89,6 +90,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/tools/ping-server', [PingServerController::class, 'index'])->name('tools.ping.index');
     Route::post('/tools/ping-server', [PingServerController::class, 'check'])->name('tools.ping.check');
     Route::get('/tools/db-connection', [DbConnectionController::class, 'index'])->name('tools.db-connection.index');
+    Route::get('/tools/sql-sync', [SqlSyncController::class, 'index'])->name('tools.sql-sync.index');
+    Route::get('/tools/sql-sync/download', [SqlSyncController::class, 'download'])->name('tools.sql-sync.download');
 });
 
 require __DIR__.'/auth.php';
