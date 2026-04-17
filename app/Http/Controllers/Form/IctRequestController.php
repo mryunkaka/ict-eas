@@ -46,6 +46,9 @@ class IctRequestController extends Controller
             'unit:id,name',
             'items.quotations',
             'items.ppnkDocument',
+            'items.ppmDocument',
+            'items.poDocument',
+            'items.assetHandover',
             'quotations',
         ]);
 
@@ -339,7 +342,7 @@ class IctRequestController extends Controller
         ]);
 
         $query = $this->buildIndexQuery($request);
-        $query->whereNotIn('status', ['checked_by_asmen', 'progress_ppnk', 'completed']);
+        $query->whereNotIn('status', ['checked_by_asmen', 'progress_ppnk', 'progress_goods_arrived', 'completed']);
 
         if (($validated['select_all_matching'] ?? false) === true) {
             $deleted = (clone $query)->delete();
@@ -378,10 +381,12 @@ class IctRequestController extends Controller
 
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
+            'ppnk_date' => ['required', 'date'],
             'items.*.item_id' => ['required', 'integer'],
             'items.*.ppnk_number' => ['required', 'string', 'max:255'],
             'items.*.ppnk_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
         ]);
+        $ppnkDate = Carbon::parse($validated['ppnk_date'])->startOfDay();
 
         $ictRequest->loadMissing(['items', 'ppnkDocuments']);
 
@@ -428,7 +433,7 @@ class IctRequestController extends Controller
                         'attachment_size' => $stored['size'],
                         'attachment_mime' => $stored['mime'],
                         'uploaded_by' => $request->user()->id,
-                        'uploaded_at' => now(),
+                        'uploaded_at' => $ppnkDate,
                     ]
                 );
             }
@@ -440,6 +445,7 @@ class IctRequestController extends Controller
             $document = $processedDocuments[$row['ppnk_number']] ?? $documentsByNumber->get($row['ppnk_number']);
             $itemsById[$row['item_id']]->update([
                 'ppnk_document_id' => $document?->id,
+                'ppnk_uploaded_at' => $ppnkDate,
             ]);
         }
 
@@ -456,12 +462,14 @@ class IctRequestController extends Controller
         abort_unless($ictRequest->status === 'progress_verifikasi_audit', 403);
 
         $validated = $request->validate([
+            'audit_date' => ['required', 'date'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'integer'],
             'items.*.audit_status' => ['required', 'in:takeout,approved'],
             'items.*.audit_reason' => ['nullable', 'string', 'max:1000'],
             'items.*.takeout_qty' => ['nullable', 'integer', 'min:0'],
         ]);
+        $auditDate = Carbon::parse($validated['audit_date'])->startOfDay();
 
         $ictRequest->loadMissing(['items']);
 
@@ -519,6 +527,7 @@ class IctRequestController extends Controller
         // Update status ke progress_ppm setelah semua item diverifikasi
         $ictRequest->update([
             'status' => 'progress_ppm',
+            'audit_verified_at' => $auditDate,
         ]);
 
         $message = "Verifikasi audit selesai. {$approvedCount} barang disetujui, {$takeoutCount} barang di-takeout.";
@@ -537,12 +546,14 @@ class IctRequestController extends Controller
 
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
+            'ppm_date' => ['required', 'date'],
             'items.*.item_id' => ['required', 'integer'],
             'items.*.line_number' => ['nullable', 'integer'],
             'items.*.ppm_number' => ['required', 'string', 'max:255'],
             'items.*.pr_number' => ['required', 'string', 'max:255'],
             'items.*.ppm_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
         ]);
+        $ppmDate = Carbon::parse($validated['ppm_date'])->startOfDay();
 
         $ictRequest->loadMissing(['items', 'ppmDocuments']);
 
@@ -591,7 +602,7 @@ class IctRequestController extends Controller
                         'attachment_size' => $stored['size'],
                         'attachment_mime' => $stored['mime'],
                         'uploaded_by' => $request->user()->id,
-                        'uploaded_at' => now(),
+                        'uploaded_at' => $ppmDate,
                     ]
                 );
             }
@@ -603,6 +614,7 @@ class IctRequestController extends Controller
             $document = $processedDocuments[$row['ppm_number']] ?? $documentsByNumber->get($row['ppm_number']);
             $itemsById[$row['item_id']]->update([
                 'ppm_document_id' => $document?->id,
+                'ppm_uploaded_at' => $ppmDate,
                 'pr_number' => $row['pr_number'],
                 'line_number' => $row['line_number'],
             ]);
@@ -623,10 +635,12 @@ class IctRequestController extends Controller
 
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
+            'po_date' => ['required', 'date'],
             'items.*.item_id' => ['required', 'integer'],
             'items.*.po_number' => ['required', 'string', 'max:255'],
             'items.*.po_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
         ]);
+        $poDate = Carbon::parse($validated['po_date'])->startOfDay();
 
         $ictRequest->loadMissing(['items', 'poDocuments']);
 
@@ -673,7 +687,7 @@ class IctRequestController extends Controller
                         'attachment_size' => $stored['size'],
                         'attachment_mime' => $stored['mime'],
                         'uploaded_by' => $request->user()->id,
-                        'uploaded_at' => now(),
+                        'uploaded_at' => $poDate,
                     ]
                 );
             }
@@ -685,6 +699,7 @@ class IctRequestController extends Controller
             $document = $processedDocuments[$row['po_number']] ?? $documentsByNumber->get($row['po_number']);
             $itemsById[$row['item_id']]->update([
                 'po_document_id' => $document?->id,
+                'po_uploaded_at' => $poDate,
             ]);
         }
 
@@ -1283,7 +1298,7 @@ class IctRequestController extends Controller
 
     protected function canModifyRequest(IctRequest $ictRequest): bool
     {
-        return ! in_array($ictRequest->status, ['checked_by_asmen', 'progress_ppnk', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'completed'], true);
+        return ! in_array($ictRequest->status, ['checked_by_asmen', 'progress_ppnk', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'progress_goods_arrived', 'completed'], true);
     }
 
     protected function storePpnkAttachment(UploadedFile $attachment): array
@@ -1343,13 +1358,32 @@ class IctRequestController extends Controller
         $ictRequest->reviewHistories()->delete();
     }
 
-    public function storeGoodsReceipt(Request $request, IctRequest $ictRequest): RedirectResponse
+    public function confirmGoodsArrival(Request $request, IctRequest $ictRequest): RedirectResponse
     {
         abort_unless($this->canAccessRequest($request, $ictRequest), 403);
         abort_unless($request->user()->isIctAdmin(), 403);
         abort_unless($ictRequest->status === 'progress_waiting_goods', 403);
 
         $validated = $request->validate([
+            'goods_arrived_date' => ['required', 'date'],
+        ]);
+
+        $ictRequest->update([
+            'status' => 'progress_goods_arrived',
+            'goods_arrived_at' => Carbon::parse($validated['goods_arrived_date'])->startOfDay(),
+        ]);
+
+        return back()->with('status', 'Barang dikonfirmasi sudah datang. Lanjutkan proses penerimaan barang.');
+    }
+
+    public function storeGoodsReceipt(Request $request, IctRequest $ictRequest): RedirectResponse
+    {
+        abort_unless($this->canAccessRequest($request, $ictRequest), 403);
+        abort_unless($request->user()->isIctAdmin(), 403);
+        abort_unless($ictRequest->status === 'progress_goods_arrived', 403);
+
+        $validated = $request->validate([
+            'goods_receipt_date' => ['required', 'date'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'integer'],
             'items.*.handover_type' => ['required', 'in:asset,non_asset'],
@@ -1373,6 +1407,7 @@ class IctRequestController extends Controller
             'items.*.deliverer_name' => ['nullable', 'string', 'max:255'],
             'items.*.deliverer_position' => ['nullable', 'string', 'max:255'],
         ]);
+        $goodsReceiptDate = Carbon::parse($validated['goods_receipt_date'])->startOfDay();
 
         $ictRequest->loadMissing(['items', 'unit']);
 
@@ -1384,6 +1419,7 @@ class IctRequestController extends Controller
                 'ict_request_id' => $ictRequest->id,
                 'ict_request_item_id' => $ictRequestItem->id,
                 'handover_type' => $itemData['handover_type'],
+                'received_at' => $goodsReceiptDate,
                 'created_by' => $request->user()->id,
             ];
 
@@ -1434,7 +1470,7 @@ class IctRequestController extends Controller
                     'serial_number' => $itemData['serial_number'] ?? null,
                     'specification' => $itemData['model_specification'] ? ['description' => $itemData['model_specification']] : null,
                     'location' => $itemData['dept'] ?? null,
-                    'purchase_date' => now(),
+                    'purchase_date' => $goodsReceiptDate,
                     'condition_status' => 'good',
                     'lifecycle_status' => 'active',
                 ]);
@@ -1454,10 +1490,12 @@ class IctRequestController extends Controller
         }
 
         // Update status to completed after all items processed
-        $ictRequest->status = 'completed';
-        $ictRequest->save();
+        $ictRequest->update([
+            'status' => 'completed',
+            'goods_delivered_at' => $goodsReceiptDate,
+        ]);
 
-        return back()->with('status', 'Penerimaan barang berhasil disimpan. Status: Barang Sudah Diterima.');
+        return back()->with('status', 'Penerimaan barang berhasil disimpan. Status: Barang Telah Diserahkan.');
     }
 
     protected function generateHandoverReport(AssetHandover $handover, IctRequest $ictRequest, IctRequestItem $item): void

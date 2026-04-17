@@ -44,6 +44,7 @@
             'upload_ppnk_url' => route('forms.ict-requests.ppnk.store', $request),
             'upload_ppm_url' => route('forms.ict-requests.ppm.store', $request),
             'upload_po_url' => route('forms.ict-requests.po.store', $request),
+            'confirm_goods_arrival_url' => route('forms.ict-requests.confirm-goods-arrival', $request),
             'goods_receipt_url' => route('forms.ict-requests.goods-receipt.store', $request),
             'verify_audit_url' => route('forms.ict-requests.verify-audit', $request),
             'priority' => strtoupper($request->priority),
@@ -55,9 +56,10 @@
             'can_manage_ppnk' => in_array($request->status, ['progress_ppnk', 'progress_verifikasi_audit'], true) && auth()->user()->isIctAdmin(),
             'can_manage_ppm' => $request->status === 'progress_ppm' && auth()->user()->isIctAdmin(),
             'can_manage_po' => $request->status === 'progress_po' && auth()->user()->isIctAdmin(),
-            'can_manage_goods_receipt' => $request->status === 'progress_waiting_goods' && auth()->user()->isIctAdmin(),
+            'can_confirm_goods_arrival' => $request->status === 'progress_waiting_goods' && auth()->user()->isIctAdmin(),
+            'can_manage_goods_receipt' => $request->status === 'progress_goods_arrived' && auth()->user()->isIctAdmin(),
             'can_verify_audit' => $request->status === 'progress_verifikasi_audit' && auth()->user()->isIctAdmin(),
-            'is_locked_after_asmen' => in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'completed'], true),
+            'is_locked_after_asmen' => in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'progress_goods_arrived', 'completed'], true),
             'quotation_mode' => $request->quotation_mode,
             'created_at' => optional($request->created_at)->format('d M Y H:i'),
             'final_signed_pdf_name' => $request->final_signed_pdf_name,
@@ -75,13 +77,13 @@
                 'position' => $lastDeliverer->deliverer_position,
             ] : null,
             'total_estimated_price' => $request->items
-                ->when(in_array($request->status, ['progress_ppm', 'progress_po', 'completed'], true), function ($items) {
+                ->when(in_array($request->status, ['progress_ppm', 'progress_po', 'progress_goods_arrived', 'completed'], true), function ($items) {
                     return $items->where('audit_status', '!=', 'takeout');
                 })
                 ->sum(fn ($item) => ((float) ($item->estimated_price ?? 0)) * ((int) ($item->quantity ?? 0))),
             'items' => $request->items
                 // Filter: hide takeout items for PPM and beyond
-                ->when(in_array($request->status, ['progress_ppm', 'progress_po', 'completed'], true), function ($items) {
+                ->when(in_array($request->status, ['progress_ppm', 'progress_po', 'progress_goods_arrived', 'completed'], true), function ($items) {
                     return $items->where('audit_status', '!=', 'takeout');
                 })
                 ->map(fn ($item) => [
@@ -112,6 +114,12 @@
                 'audit_status' => $item->audit_status,
                 'audit_reason' => $item->audit_reason,
                 'takeout_qty' => $item->takeout_qty,
+                'handover_type' => $item->assetHandover?->handover_type,
+                'handover_description' => $item->assetHandover?->description,
+                'handover_report_url' => $item->assetHandover ? route('forms.ict-requests.handover-report.pdf', ['ictRequest' => $request, 'assetHandover' => $item->assetHandover]) : null,
+                'surat_jalan_url' => $item->assetHandover?->surat_jalan_path ? \Illuminate\Support\Facades\Storage::url($item->assetHandover->surat_jalan_path) : null,
+                'surat_jalan_name' => $item->assetHandover?->surat_jalan_name,
+                'surat_jalan_is_image' => str_starts_with((string) $item->assetHandover?->surat_jalan_mime, 'image/'),
                 'quotations' => $item->quotations->map(fn ($quotation) => [
                     'vendor_name' => $quotation->vendor_name,
                     'attachment_name' => $quotation->attachment_name,
@@ -120,6 +128,27 @@
                 ])->all(),
             ])->all(),
             'global_quotations' => $globalQuotations,
+            'asset_handover_reports' => $request->items
+                ->map(fn ($item) => $item->assetHandover)
+                ->filter(fn ($handover) => $handover && $handover->handover_type === 'asset')
+                ->map(fn ($handover) => [
+                    'item_name' => $handover->ictRequestItem?->item_name ?? 'Barang',
+                    'report_url' => route('forms.ict-requests.handover-report.pdf', ['ictRequest' => $request, 'assetHandover' => $handover]),
+                ])
+                ->values()
+                ->all(),
+            'non_asset_handovers' => $request->items
+                ->map(fn ($item) => $item->assetHandover)
+                ->filter(fn ($handover) => $handover && $handover->handover_type === 'non_asset')
+                ->map(fn ($handover) => [
+                    'item_name' => $handover->ictRequestItem?->item_name ?? 'Barang',
+                    'description' => $handover->description,
+                    'surat_jalan_name' => $handover->surat_jalan_name,
+                    'surat_jalan_url' => $handover->surat_jalan_path ? \Illuminate\Support\Facades\Storage::url($handover->surat_jalan_path) : null,
+                    'surat_jalan_is_image' => str_starts_with((string) $handover->surat_jalan_mime, 'image/'),
+                ])
+                ->values()
+                ->all(),
         ];
     })->values();
 @endphp
@@ -141,7 +170,15 @@
                 ppnkTarget: null,
                 ppmTarget: null,
                 poTarget: null,
+                goodsArrivalTarget: null,
                 goodsReceiptTarget: null,
+                ppnkDate: '',
+                auditDate: '',
+                ppmDate: '',
+                poDate: '',
+                goodsArrivalDate: '',
+                goodsReceiptDate: '',
+                nonAssetInfoTarget: null,
                 handoverTypes: {},
                 getHandoverType(index, defaultValue = 'asset') {
                     return this.handoverTypes[index] || defaultValue;
@@ -231,6 +268,7 @@
                 openPpnkModal(id) {
                     const targetId = String(id);
                     this.ppnkTarget = targetId;
+                    this.ppnkDate = this.getTodayDate();
                     this.$nextTick(() => {
                         if (!this.$refs.ppnkForm) return;
                         this.$refs.ppnkForm.action = this.detailMap[targetId]?.upload_ppnk_url ?? '';
@@ -238,6 +276,7 @@
                 },
                 closePpnkModal() {
                     this.ppnkTarget = null;
+                    this.ppnkDate = '';
                     if (this.$refs.ppnkForm) {
                         this.$refs.ppnkForm.reset();
                     }
@@ -252,6 +291,7 @@
                 openPpmModal(id) {
                     const targetId = String(id);
                     this.ppmTarget = targetId;
+                    this.ppmDate = this.getTodayDate();
                     this.$nextTick(() => {
                         if (!this.$refs.ppmForm) return;
                         this.$refs.ppmForm.action = this.detailMap[targetId]?.upload_ppm_url ?? '';
@@ -259,6 +299,7 @@
                 },
                 closePpmModal() {
                     this.ppmTarget = null;
+                    this.ppmDate = '';
                     if (this.$refs.ppmForm) {
                         this.$refs.ppmForm.reset();
                     }
@@ -273,6 +314,7 @@
                 openPoModal(id) {
                     const targetId = String(id);
                     this.poTarget = targetId;
+                    this.poDate = this.getTodayDate();
                     this.$nextTick(() => {
                         if (!this.$refs.poForm) return;
                         this.$refs.poForm.action = this.detailMap[targetId]?.upload_po_url ?? '';
@@ -280,6 +322,7 @@
                 },
                 closePoModal() {
                     this.poTarget = null;
+                    this.poDate = '';
                     if (this.$refs.poForm) {
                         this.$refs.poForm.reset();
                     }
@@ -291,9 +334,32 @@
                     }
                     this.$refs.poForm.submit();
                 },
+                openGoodsArrivalModal(id) {
+                    this.goodsArrivalTarget = String(id);
+                    this.goodsArrivalDate = this.getTodayDate();
+                    this.$nextTick(() => {
+                        if (!this.$refs.goodsArrivalForm) return;
+                        this.$refs.goodsArrivalForm.action = this.detailMap[this.goodsArrivalTarget]?.confirm_goods_arrival_url ?? '';
+                    });
+                },
+                closeGoodsArrivalModal() {
+                    this.goodsArrivalTarget = null;
+                    this.goodsArrivalDate = '';
+                    if (this.$refs.goodsArrivalForm) {
+                        this.$refs.goodsArrivalForm.reset();
+                    }
+                },
+                submitGoodsArrivalForm() {
+                    if (!this.goodsArrivalTarget) return;
+                    if (!confirm('Apakah barang sudah diterima? Status akan berubah menjadi Barang Sudah Datang.')) {
+                        return;
+                    }
+                    this.$refs.goodsArrivalForm.submit();
+                },
                 openGoodsReceiptModal(id) {
                     const targetId = String(id);
                     this.goodsReceiptTarget = targetId;
+                    this.goodsReceiptDate = this.getTodayDate();
                     // Initialize handover types setelah data dimuat
                     this.$nextTick(() => {
                         const items = this.getGoodsReceiptItems();
@@ -305,13 +371,14 @@
                 },
                 closeGoodsReceiptModal() {
                     this.goodsReceiptTarget = null;
+                    this.goodsReceiptDate = '';
                     if (this.$refs.goodsReceiptForm) {
                         this.$refs.goodsReceiptForm.reset();
                     }
                 },
                 submitGoodsReceiptForm() {
                     if (!this.goodsReceiptTarget) return;
-                    if (!confirm('Yakin ingin memproses penerimaan barang ini? Status akan berubah menjadi Barang Sudah Diterima.')) {
+                    if (!confirm('Yakin ingin menyimpan penerimaan barang? Status akan berubah menjadi Barang Telah Diserahkan.')) {
                         return;
                     }
                     this.$refs.goodsReceiptForm.submit();
@@ -351,6 +418,7 @@
                 openAuditModal(id) {
                     const targetId = String(id);
                     this.auditTarget = targetId;
+                    this.auditDate = this.getTodayDate();
                     this.auditStates = {};
                     const items = this.detailMap[targetId]?.items ?? [];
                     items.forEach((item, index) => {
@@ -360,9 +428,16 @@
                 },
                 closeAuditModal() {
                     this.auditTarget = null;
+                    this.auditDate = '';
                     if (this.$refs.auditForm) {
                         this.$refs.auditForm.reset();
                     }
+                },
+                openNonAssetInfoModal(id) {
+                    this.nonAssetInfoTarget = String(id);
+                },
+                closeNonAssetInfoModal() {
+                    this.nonAssetInfoTarget = null;
                 },
                 submitAuditForm() {
                     if (!this.auditTarget) return;
@@ -590,10 +665,6 @@
                                     <x-heroicon-o-arrow-path class="mr-1.5 h-3.5 w-3.5" />
                                     Reset
                                 </x-button>
-	                            <button type="submit" class="ui-page-danger-button !px-2.5 !py-1 !text-[11px]">
-	                                <x-heroicon-o-trash class="mr-1.5 h-3.5 w-3.5" />
-	                                Delete selected
-	                            </button>
                                 <x-button :href="route('forms.ict-requests.export', request()->query())" variant="secondary" size="compact" class="!px-2.5 !py-1 !text-[11px]">
                                     <x-heroicon-o-arrow-down-tray class="mr-1.5 h-3.5 w-3.5" />
                                     Export Excel
@@ -602,6 +673,10 @@
                                     <x-heroicon-o-plus class="mr-1.5 h-3.5 w-3.5" />
                                     Buat Permintaan
                                 </x-button>
+	                            <button type="submit" class="ui-page-danger-button !px-2.5 !py-1 !text-[11px]">
+	                                <x-heroicon-o-trash class="mr-1.5 h-3.5 w-3.5" />
+	                                Delete selected
+	                            </button>
                             </div>
 
 	                        <div class="flex flex-wrap items-center gap-4">
@@ -747,14 +822,24 @@
                             <td class="ui-table-cell-nowrap">{{ $request->departmentDisplayName() }}</td>
                             <td><x-badge size="compact" variant="{{ $request->priority === 'urgent' ? 'warning' : 'default' }}">{{ strtoupper($request->priority) }}</x-badge></td>
                             <td class="ui-table-cell-fixed-wide ui-table-cell-wrap">{{ \Illuminate\Support\Str::limit($request->justification, 180) }}</td>
-                            <td class="ui-table-cell-nowrap"><x-badge size="compact" variant="{{ in_array($request->status, ['progress_ppnk'], true) || ($request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path) ? 'warning' : 'success' }}">{{ $request->statusLabel() }}</x-badge></td>
+                            @php
+                                $statusVariant = match (true) {
+                                    $request->status === 'rejected' => 'danger',
+                                    $request->status === 'needs_revision' => 'warning',
+                                    $request->status === 'checked_by_asmen' && (int) $request->print_count > 0 && ! $request->final_signed_pdf_path => 'warning', // Progress TTD
+                                    in_array($request->status, ['progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'progress_po', 'progress_waiting_goods'], true) => 'warning',
+                                    in_array($request->status, ['ttd_in_progress', 'checked_by_asmen', 'progress_goods_arrived', 'approved_by_manager', 'completed'], true) => 'success',
+                                    default => 'default',
+                                };
+                            @endphp
+                            <td class="ui-table-cell-nowrap"><x-badge size="compact" :variant="$statusVariant">{{ $request->statusLabel() }}</x-badge></td>
                             <td>
                                 <div class="ui-action-row ui-action-row--compact justify-end">
                                     <x-button type="button" variant="action-neutral" x-on:click="openDetail('{{ $request->id }}')" title="Lihat detail">
                                         <x-heroicon-o-eye class="ui-action-icon" />
                                     </x-button>
 
-                                    @if (auth()->user()->canCreateIctRequest() && !in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'completed'], true))
+                                    @if (auth()->user()->canCreateIctRequest() && !in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'progress_goods_arrived', 'completed'], true))
                                         <x-button :href="route('forms.ict-requests.edit', $request)" variant="action-neutral" title="Edit">
                                             <x-heroicon-o-pencil-square class="ui-action-icon" />
                                         </x-button>
@@ -792,7 +877,13 @@
                                     @endif
 
                                     @if ($request->status === 'progress_waiting_goods' && auth()->user()->isIctAdmin())
-                                        <x-button type="button" variant="action-success" x-on:click="openGoodsReceiptModal('{{ $request->id }}')" title="Penerimaan Barang">
+                                        <x-button type="button" variant="action-review" x-on:click="openGoodsArrivalModal('{{ $request->id }}')" title="Konfirmasi Barang Datang">
+                                            <x-heroicon-o-clipboard-document-check class="ui-action-icon" />
+                                        </x-button>
+                                    @endif
+
+                                    @if ($request->status === 'progress_goods_arrived' && auth()->user()->isIctAdmin())
+                                        <x-button type="button" variant="action-approve" x-on:click="openGoodsReceiptModal('{{ $request->id }}')" title="Penerimaan Barang">
                                             <x-heroicon-o-check-circle class="ui-action-icon" />
                                         </x-button>
                                     @endif
@@ -803,7 +894,27 @@
                                         </x-button>
                                     @endif
 
-                                    @if (auth()->user()->canCreateIctRequest() && !in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'completed'], true))
+                                    @if ($request->status === 'completed')
+                                        <template x-if="detailMap['{{ $request->id }}']?.asset_handover_reports?.length">
+                                            <a
+                                                :href="detailMap['{{ $request->id }}']?.asset_handover_reports?.[0]?.report_url"
+                                                target="_blank"
+                                                class="ui-action-button ui-action-button--upload"
+                                                title="View Berita Acara Asset"
+                                            >
+                                                <x-heroicon-o-document-text class="ui-action-icon" />
+                                                <span class="sr-only">View Berita Acara Asset</span>
+                                            </a>
+                                        </template>
+                                        <template x-if="detailMap['{{ $request->id }}']?.non_asset_handovers?.length">
+                                            <button type="button" class="ui-action-button ui-action-button--upload" x-on:click="openNonAssetInfoModal('{{ $request->id }}')" title="View Keterangan & Surat Jalan">
+                                                <x-heroicon-o-paper-clip class="ui-action-icon" />
+                                                <span class="sr-only">View Keterangan & Surat Jalan</span>
+                                            </button>
+                                        </template>
+                                    @endif
+
+                                    @if (auth()->user()->canCreateIctRequest() && !in_array($request->status, ['checked_by_asmen', 'progress_ppnk', 'progress_verifikasi_audit', 'progress_ppm', 'progress_po', 'progress_waiting_goods', 'progress_goods_arrived', 'completed'], true))
                                         <form method="POST" action="{{ route('forms.ict-requests.bulk-destroy') }}" onsubmit="return confirm('Hapus permintaan ini?')">
                                             @csrf
                                             @method('DELETE')
@@ -1091,6 +1202,10 @@
                     @csrf
 
                     <div class="flex-1 overflow-y-auto px-5 py-4">
+                        <div class="mb-4 max-w-xs">
+                            <label class="block text-xs font-medium text-ink-600">Tanggal PPNK / PPK</label>
+                            <input type="date" name="ppnk_date" x-model="ppnkDate" required class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500" />
+                        </div>
                         <p class="mb-4 text-xs text-ink-500">Isi nomor per unit barang. Jika nomor sama, cukup upload file pada salah satu baris dengan nomor yang sama.</p>
 
                         <div class="space-y-3">
@@ -1249,6 +1364,10 @@
                     @csrf
 
                     <div class="flex-1 overflow-y-auto px-5 py-4">
+                        <div class="mb-4 max-w-xs">
+                            <label class="block text-xs font-medium text-ink-600">Tanggal PPM</label>
+                            <input type="date" name="ppm_date" x-model="ppmDate" required class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500" />
+                        </div>
                         <p class="mb-4 text-xs text-ink-500">Isi data PPM dan PR per unit barang yang disetujui (bukan takeout). Jika nomor PPM sama, cukup upload file pada salah satu baris.</p>
 
                         <div class="space-y-3">
@@ -1349,6 +1468,10 @@
                     @csrf
 
                     <div class="flex-1 overflow-y-auto px-5 py-4">
+                        <div class="mb-4 max-w-xs">
+                            <label class="block text-xs font-medium text-ink-600">Tanggal PO</label>
+                            <input type="date" name="po_date" x-model="poDate" required class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500" />
+                        </div>
                         <p class="mb-4 text-xs text-ink-500">Isi nomor PO per unit barang yang disetujui (bukan takeout). Jika nomor sama, cukup upload file pada salah satu baris dengan nomor yang sama.</p>
 
                         <div class="space-y-3">
@@ -1431,6 +1554,10 @@
                     @csrf
 
                     <div class="flex-1 overflow-y-auto px-5 py-4">
+                        <div class="mb-4 max-w-xs">
+                            <label class="block text-xs font-medium text-ink-600">Tanggal Verifikasi Audit</label>
+                            <input type="date" name="audit_date" x-model="auditDate" required class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500" />
+                        </div>
                         <p class="mb-4 text-xs text-ink-500">Verifikasi setiap barang: pilih Disetujui atau Takeout. Barang yang di-takeout akan dikeluarkan dari proses.</p>
 
                         <div class="space-y-3">
@@ -1518,6 +1645,47 @@
             </div>
         </div>
 
+        <div
+            x-show="goodsArrivalTarget"
+            x-cloak
+            x-transition.opacity.duration.200ms
+            x-on:keydown.escape.window="closeGoodsArrivalModal()"
+            class="fixed inset-0 z-[75] flex items-center justify-center bg-ink-900/50 p-4"
+        >
+            <div class="w-full max-w-lg rounded-3xl bg-white shadow-2xl">
+                <div class="flex items-start justify-between gap-4 border-b border-ink-100 px-5 py-4">
+                    <div>
+                        <h3 class="font-display text-lg font-semibold text-ink-900">Konfirmasi Barang Datang</h3>
+                        <p class="mt-1 text-sm text-ink-500" x-text="detailMap[goodsArrivalTarget]?.subject || ''"></p>
+                    </div>
+                    <button type="button" x-on:click="closeGoodsArrivalModal()" class="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-ink-200 text-ink-600 transition hover:bg-ink-50">
+                        <x-heroicon-o-x-mark class="h-4 w-4" />
+                    </button>
+                </div>
+
+                <form x-ref="goodsArrivalForm" method="POST" x-on:submit.prevent="submitGoodsArrivalForm()" class="space-y-4 px-5 py-4">
+                    @csrf
+                    <label class="block space-y-2">
+                        <span class="text-sm font-medium text-ink-700">Tanggal Barang Datang</span>
+                        <input
+                            type="date"
+                            name="goods_arrived_date"
+                            x-model="goodsArrivalDate"
+                            required
+                            class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+                        />
+                    </label>
+                    <div class="rounded-2xl border border-ink-100 bg-ink-50/60 p-3 text-sm text-ink-700">
+                        Apakah barang sudah diterima?
+                    </div>
+                    <div class="flex justify-end gap-2 border-t border-ink-100 pt-4">
+                        <x-button type="button" variant="secondary" x-on:click="closeGoodsArrivalModal()">Tidak</x-button>
+                        <x-button type="submit">Ya, Sudah Diterima</x-button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- Goods Receipt Modal -->
         <div
             x-show="goodsReceiptTarget"
@@ -1541,6 +1709,10 @@
                     @csrf
 
                     <div class="flex-1 overflow-y-auto px-5 py-4">
+                        <div class="mb-4 max-w-xs">
+                            <label class="block text-xs font-medium text-ink-600">Tanggal Penerimaan Barang</label>
+                            <input type="date" name="goods_receipt_date" x-model="goodsReceiptDate" required class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500" />
+                        </div>
                         <p class="mb-4 text-xs text-ink-500">Pilih apakah barang akan dimasukkan ke list asset atau tidak. Untuk asset otomatis akan dibuatkan Berita Acara Serah Terima.</p>
 
                         <div class="space-y-4">
@@ -1788,6 +1960,51 @@
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <div
+            x-show="nonAssetInfoTarget"
+            x-cloak
+            x-transition.opacity.duration.200ms
+            x-on:keydown.escape.window="closeNonAssetInfoModal()"
+            class="fixed inset-0 z-[85] flex items-center justify-center bg-ink-900/50 p-4"
+        >
+            <div class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+                <div class="flex items-start justify-between gap-4 border-b border-ink-100 px-5 py-4">
+                    <div>
+                        <h3 class="font-display text-lg font-semibold text-ink-900">Keterangan & Lampiran Surat Jalan</h3>
+                        <p class="mt-1 text-sm text-ink-500" x-text="detailMap[nonAssetInfoTarget]?.subject || ''"></p>
+                    </div>
+                    <button type="button" x-on:click="closeNonAssetInfoModal()" class="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-ink-200 text-ink-600 transition hover:bg-ink-50">
+                        <x-heroicon-o-x-mark class="h-4 w-4" />
+                    </button>
+                </div>
+                <div class="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+                    <template x-for="(handover, index) in detailMap[nonAssetInfoTarget]?.non_asset_handovers ?? []" :key="`non-asset-info-${index}`">
+                        <div class="rounded-2xl border border-ink-100 bg-ink-50/60 p-4">
+                            <div class="text-sm font-semibold text-ink-900" x-text="handover.item_name || `Barang ${index + 1}`"></div>
+                            <div class="mt-2 text-sm text-ink-700" x-text="handover.description || '-'"></div>
+                            <template x-if="handover.surat_jalan_url">
+                                <div class="mt-3 space-y-2">
+                                    <a :href="handover.surat_jalan_url" target="_blank" class="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-800">
+                                        <x-heroicon-o-arrow-top-right-on-square class="h-4 w-4" />
+                                        <span x-text="handover.surat_jalan_name || 'Lihat Surat Jalan'"></span>
+                                    </a>
+                                    <template x-if="handover.surat_jalan_is_image">
+                                        <img :src="handover.surat_jalan_url" alt="" class="max-h-44 rounded-2xl border border-ink-100 object-cover" />
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <p x-show="!(detailMap[nonAssetInfoTarget]?.non_asset_handovers?.length)" class="text-sm text-ink-500">Belum ada data non-asset.</p>
+                </div>
+                <div class="border-t border-ink-100 px-5 py-4">
+                    <div class="flex justify-end">
+                        <x-button type="button" variant="secondary" x-on:click="closeNonAssetInfoModal()">Tutup</x-button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

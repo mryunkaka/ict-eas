@@ -49,6 +49,7 @@ Route::middleware('auth')->group(function () {
 	        Route::post('ict-requests/{ictRequest}/verify-audit', [IctRequestController::class, 'verifyAuditPpnk'])->name('ict-requests.verify-audit');
 	        Route::post('ict-requests/{ictRequest}/ppm', [IctRequestController::class, 'storePpm'])->name('ict-requests.ppm.store');
 	        Route::post('ict-requests/{ictRequest}/po', [IctRequestController::class, 'storePo'])->name('ict-requests.po.store');
+	        Route::post('ict-requests/{ictRequest}/confirm-goods-arrival', [IctRequestController::class, 'confirmGoodsArrival'])->name('ict-requests.confirm-goods-arrival');
 	        Route::post('ict-requests/{ictRequest}/goods-receipt', [IctRequestController::class, 'storeGoodsReceipt'])->name('ict-requests.goods-receipt.store');
 	        Route::get('ict-requests/{ictRequest}/handover-report/{assetHandover}/pdf', [IctRequestController::class, 'handoverReportPdf'])->name('ict-requests.handover-report.pdf');
 	        Route::get('asset-handovers/{assetHandover}/pdf', [AssetHandoverController::class, 'pdf'])->name('asset-handovers.pdf');

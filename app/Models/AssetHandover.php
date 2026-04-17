@@ -12,6 +12,7 @@ class AssetHandover extends Model
         'ict_request_item_id',
         'asset_id',
         'handover_type',
+        'received_at',
         'description',
         'serah_terima_path',
         'serah_terima_name',
@@ -42,6 +43,7 @@ class AssetHandover extends Model
     protected function casts(): array
     {
         return [
+            'received_at' => 'datetime',
             'serah_terima_size' => 'integer',
             'surat_jalan_size' => 'integer',
             'handover_report_generated_at' => 'datetime',
