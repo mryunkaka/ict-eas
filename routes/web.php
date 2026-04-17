@@ -42,6 +42,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
 	    Route::prefix('forms')->name('forms.')->group(function () {
+	        Route::get('ict-requests/next-identifier', [IctRequestController::class, 'nextIdentifier'])->name('ict-requests.next-identifier');
 	        Route::get('ict-requests/export', [IctRequestController::class, 'export'])->name('ict-requests.export');
 	        Route::get('ict-requests/{ictRequest}/pdf', [IctRequestController::class, 'pdf'])->name('ict-requests.pdf');
 	        Route::post('ict-requests/{ictRequest}/print', [IctRequestController::class, 'print'])->name('ict-requests.print');

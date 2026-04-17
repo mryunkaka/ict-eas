@@ -2,9 +2,11 @@ import './bootstrap';
 
 import Alpine from 'alpinejs';
 import DataTable from 'datatables.net-dt';
+import { wireIctRequestIdentifier } from './helpers/ict-request-identifier';
 
 window.Alpine = Alpine;
 window.DataTable = DataTable;
+window.wireIctRequestIdentifier = wireIctRequestIdentifier;
 
 const sidebarPreferenceKey = 'ict-eas:sidebar-open';
 

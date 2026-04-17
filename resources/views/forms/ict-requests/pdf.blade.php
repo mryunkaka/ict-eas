@@ -95,6 +95,21 @@
             vertical-align: bottom !important;
         }
 
+        .subject-stamp {
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            font-size: 6.5px;
+            line-height: 1.3;
+            color: #111111;
+            text-align: right;
+            max-width: 240px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            z-index: 2;
+        }
+
         .content {
             padding: 10px 18px 18px;
         }
@@ -417,6 +432,7 @@
         @if ($isCopy)
             <div class="copy-watermark">DOCUMENT COPY</div>
         @endif
+        <div class="subject-stamp">{{ $ictRequest->subject ?: $ictRequest->form_number }}</div>
         <div class="page-inner">
         <table class="header">
             <tr>

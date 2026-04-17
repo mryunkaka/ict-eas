@@ -369,4 +369,20 @@
             </form>
         </x-card>
     </div>
+
+    @if ($formMode !== 'edit')
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const dateInput = document.querySelector('input[name="needed_at"]');
+                const subjectInput = document.getElementById('subject');
+                if (!dateInput || !subjectInput || typeof window.wireIctRequestIdentifier !== 'function') return;
+
+                window.wireIctRequestIdentifier({
+                    dateInput,
+                    subjectInput,
+                    endpointUrl: @js(route('forms.ict-requests.next-identifier')),
+                });
+            });
+        </script>
+    @endif
 </x-app-layout>

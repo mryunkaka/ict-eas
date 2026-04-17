@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -91,7 +92,9 @@ class IctRequestController extends Controller
         $items = $request->validated('items');
         $quotationMode = (string) $request->input('quotation_mode', 'global');
         $unitCode = $user->unit?->code ?? 'UNIT';
-        $formIdentifier = $this->buildFormIdentifier((string) $unitCode, $this->resolveNextFormSequence((int) $user->unit_id));
+        $neededAt = Carbon::parse((string) $request->input('needed_at', now()->toDateString()));
+        $yearSuffix = $neededAt->format('y');
+        $formIdentifier = $this->buildFormIdentifier((string) $unitCode, $this->resolveNextFormSequence((int) $user->unit_id, $neededAt), $yearSuffix);
 
         $ictRequest = IctRequest::create([
             'unit_id' => $user->unit_id,
@@ -144,9 +147,12 @@ class IctRequestController extends Controller
         }
 
         $subjectInput = trim((string) $request->input('subject'));
+        $neededAt = Carbon::parse((string) ($request->input('needed_at') ?: optional($ictRequest->needed_at)->toDateString() ?: now()->toDateString()));
+        $yearSuffix = $neededAt->format('y');
         $fallbackIdentifier = $ictRequest->form_number ?: $this->buildFormIdentifier(
             (string) ($ictRequest->unit?->code ?? 'UNIT'),
-            $this->resolveNextFormSequence((int) $ictRequest->unit_id)
+            $this->resolveNextFormSequence((int) $ictRequest->unit_id, $neededAt),
+            $yearSuffix
         );
 
         $ictRequest->update([
@@ -710,45 +716,78 @@ class IctRequestController extends Controller
         return back()->with('status', 'Data PO berhasil disimpan. Status: Progress Menunggu Barang Diterima.');
     }
 
-    protected function buildFormIdentifier(string $unitCode, int $sequence): string
+    protected function buildFormIdentifier(string $unitCode, int $sequence, string $yearSuffix): string
     {
         $normalizedUnitCode = Str::upper(trim($unitCode)) !== '' ? Str::upper(trim($unitCode)) : 'UNIT';
 
-        return sprintf('%s-FORM ICT-%03d', $normalizedUnitCode, $sequence);
+        return sprintf('%s-FORM ICT-%03d-%s', $normalizedUnitCode, $sequence, $yearSuffix);
     }
 
-    protected function resolveNextFormSequence(int $unitId): int
+    protected function resolveNextFormSequence(int $unitId, Carbon $neededAt): int
     {
-        $usedSequences = IctRequest::query()
+        $year = (int) $neededAt->format('Y');
+
+        $rows = IctRequest::query()
             ->where('unit_id', $unitId)
-            ->pluck('form_number')
-            ->map(fn ($formNumber) => $this->extractFormSequence((string) $formNumber))
-            ->filter(fn ($sequence) => $sequence !== null)
-            ->sort()
-            ->values();
+            ->where(function ($query) use ($year) {
+                $query
+                    ->where(function ($q) use ($year) {
+                        $q->whereNotNull('needed_at')->whereYear('needed_at', $year);
+                    })
+                    ->orWhere(function ($q) use ($year) {
+                        $q->whereNull('needed_at')->whereYear('created_at', $year);
+                    });
+            })
+            ->get(['form_number', 'subject']);
 
-        $expectedSequence = 1;
+        $max = 0;
 
-        foreach ($usedSequences as $sequence) {
-            if ($sequence > $expectedSequence) {
-                break;
-            }
+        foreach ($rows as $row) {
+            $candidates = [
+                (string) ($row->form_number ?? ''),
+                (string) ($row->subject ?? ''),
+            ];
 
-            if ($sequence === $expectedSequence) {
-                $expectedSequence++;
+            foreach ($candidates as $value) {
+                $sequence = $this->extractFormSequence($value);
+                if ($sequence !== null) {
+                    $max = max($max, $sequence);
+                }
             }
         }
 
-        return $expectedSequence;
+        return $max + 1;
     }
 
-    protected function extractFormSequence(string $formNumber): ?int
+    protected function extractFormSequence(string $value): ?int
     {
-        if (! preg_match('/FORM ICT-(\d+)$/', Str::upper(trim($formNumber)), $matches)) {
+        if (! preg_match('/FORM ICT-(\d{1,3})/i', (string) $value, $matches)) {
             return null;
         }
 
         return (int) $matches[1];
+    }
+
+    public function nextIdentifier(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user && $user->canCreateIctRequest(), 403);
+
+        $validated = $request->validate([
+            'needed_at' => ['required', 'date'],
+        ]);
+
+        $neededAt = Carbon::parse($validated['needed_at']);
+        $yearSuffix = $neededAt->format('y');
+        $unitCode = $user->unit?->code ?? 'UNIT';
+        $sequence = $this->resolveNextFormSequence((int) $user->unit_id, $neededAt);
+        $identifier = $this->buildFormIdentifier((string) $unitCode, $sequence, $yearSuffix);
+
+        return response()->json([
+            'year' => $yearSuffix,
+            'sequence' => $sequence,
+            'identifier' => $identifier,
+        ]);
     }
 
     protected function buildIndexQuery(Request $request): Builder
@@ -1132,7 +1171,7 @@ class IctRequestController extends Controller
         $unitCode = $user->unit?->code ?? 'UNIT';
         $defaultSubject = $ictRequest
             ? ($ictRequest->subject ?: $ictRequest->form_number)
-            : $this->buildFormIdentifier((string) $unitCode, $this->resolveNextFormSequence((int) $user->unit_id));
+            : $this->buildFormIdentifier((string) $unitCode, $this->resolveNextFormSequence((int) $user->unit_id, now()), now()->format('y'));
 
         return [
             'ptaProfile' => $latestPtaProfile,
