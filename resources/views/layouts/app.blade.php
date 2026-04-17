@@ -14,11 +14,12 @@
     <body>
 	        @php
 	            $user = auth()->user();
+                $profileJobTitle = $user->job_title ?: ($user->role?->label() ?? '-');
 
 	            $primaryMenu = array_values(array_filter([
 	                ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => request()->routeIs('dashboard'), 'icon' => 'heroicon-o-squares-2x2'],
 	                ['label' => 'Permintaan ICT', 'route' => 'forms.ict-requests.index', 'active' => request()->routeIs('forms.ict-requests.*'), 'icon' => 'heroicon-o-computer-desktop'],
-	                ['label' => 'Serah Terima', 'route' => 'forms.asset-handovers.index', 'active' => request()->routeIs('forms.asset-handovers.*'), 'icon' => 'heroicon-o-document-text'],
+	                $user->canAccessAssetHandovers() ? ['label' => 'Serah Terima', 'route' => 'forms.asset-handovers.index', 'active' => request()->routeIs('forms.asset-handovers.*'), 'icon' => 'heroicon-o-document-text'] : null,
 	                ['label' => 'Permohonan Email', 'route' => 'forms.email-requests.index', 'active' => request()->routeIs('forms.email-requests.*'), 'icon' => 'heroicon-o-envelope'],
 	                ['label' => 'Perbaikan ICT', 'route' => 'forms.repairs.index', 'active' => request()->routeIs('forms.repairs.*'), 'icon' => 'heroicon-o-wrench-screwdriver'],
 	                ['label' => 'BAK / Insiden', 'route' => 'forms.incidents.index', 'active' => request()->routeIs('forms.incidents.*'), 'icon' => 'heroicon-o-exclamation-triangle'],
@@ -28,7 +29,6 @@
 	            ]));
 
             $adminMenu = array_values(array_filter([
-                $user->canProcessApprovals() ? ['label' => 'Approval Center', 'route' => 'approvals.index', 'active' => request()->routeIs('approvals.*'), 'icon' => 'heroicon-o-check-badge'] : null,
                 ['label' => 'Report', 'route' => 'reports.index', 'active' => request()->routeIs('reports.index', 'reports.export.*'), 'icon' => 'heroicon-o-chart-bar-square'],
                 ['label' => 'Laporan/Rekap Permintaan ICT', 'route' => 'reports.monitoring-pp', 'active' => request()->routeIs('reports.monitoring-pp'), 'icon' => 'heroicon-o-table-cells'],
                 $user->canManageUsers() ? ['label' => 'User Management', 'route' => 'tools.users.index', 'active' => request()->routeIs('tools.users.*'), 'icon' => 'heroicon-o-users'] : null,
@@ -39,7 +39,6 @@
 
 	            $pageTitle = match (true) {
 	                request()->routeIs('dashboard') => 'Dashboard',
-	                request()->routeIs('approvals.*') => 'Approval Center',
 	                request()->routeIs('reports.monitoring-pp') => 'Monitoring PP',
 	                request()->routeIs('reports.*') => 'Report Rekap',
 	                request()->routeIs('forms.asset-handovers.*') => 'Berita Acara Serah Terima',
@@ -80,7 +79,7 @@
                             </span>
                             <span>
                                 <span class="block font-display text-lg font-semibold text-white">ICT EAS</span>
-                                <span class="block text-xs uppercase tracking-[0.22em] text-white/55">Admin Control</span>
+                                <span class="block text-xs tracking-[0.12em] text-white/60">Sistem Informasi ICT</span>
                             </span>
                         </a>
 	                        <button type="button" class="ui-admin-close-button" x-on:click="closeSidebar()">
@@ -127,19 +126,31 @@
 	                    </div>
 
 	                    <div class="ui-admin-sidebar-footer">
-	                        <div class="space-y-2">
-	                            <a href="{{ route('profile.edit') }}" class="ui-admin-nav-item">
-	                                <x-heroicon-o-user-circle class="h-5 w-5 shrink-0" />
-	                                <span>Profil</span>
-	                            </a>
-	                            <form method="POST" action="{{ route('logout') }}">
-	                                @csrf
-	                                <button type="submit" class="ui-admin-nav-item w-full text-left">
-	                                    <x-heroicon-o-arrow-right-on-rectangle class="h-5 w-5 shrink-0" />
-	                                    <span>Logout</span>
-	                                </button>
-	                            </form>
-	                        </div>
+	                        <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
+                                <div class="flex items-stretch gap-3">
+                                    <div class="min-w-0 flex-1 space-y-1.5">
+                                        <div class="truncate text-sm font-semibold text-white">{{ $user->name }}</div>
+                                        <div class="text-xs text-white/70">{{ $profileJobTitle }}</div>
+                                        <div class="text-xs text-white/60">Unit: {{ $user->unit?->name ?? '-' }}</div>
+                                    </div>
+
+                                    <div class="w-px self-stretch bg-white/15"></div>
+
+	                                <div class="flex w-[120px] flex-col justify-center gap-1.5">
+	                                    <a href="{{ route('profile.edit') }}" class="ui-sidebar-mini-action">
+	                                        <x-heroicon-o-user-circle class="h-4 w-4 shrink-0" />
+	                                        <span>Profil</span>
+	                                    </a>
+	                                    <form method="POST" action="{{ route('logout') }}">
+	                                        @csrf
+	                                        <button type="submit" class="ui-sidebar-mini-action w-full text-left">
+	                                            <x-heroicon-o-arrow-right-on-rectangle class="h-4 w-4 shrink-0" />
+	                                            <span>Logout</span>
+	                                        </button>
+	                                    </form>
+	                                </div>
+                                </div>
+                            </div>
 	                    </div>
 	                </div>
 	            </aside>

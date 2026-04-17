@@ -113,6 +113,16 @@ class IctRequest extends Model
         return $this->belongsTo(User::class, 'requester_id');
     }
 
+    public function staffValidator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'staff_validated_by');
+    }
+
+    public function asmenChecker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'asmen_checked_by');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(IctRequestItem::class);

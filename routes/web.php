@@ -68,7 +68,9 @@ Route::middleware('auth')->group(function () {
 	    });
 
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
-    Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+    Route::get('/approvals', function () {
+        return redirect()->route('forms.ict-requests.index');
+    })->name('approvals.index');
     Route::post('/approvals/ict-requests/{ictRequest}', [ApprovalController::class, 'updateIct'])->name('approvals.ict.update');
     Route::post('/approvals/email-requests/{emailRequest}', [ApprovalController::class, 'updateEmail'])->name('approvals.email.update');
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');

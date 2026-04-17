@@ -15,11 +15,9 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
-                    @if (Auth::user()->canProcessApprovals())
-                        <x-nav-link :href="route('approvals.index')" :active="request()->routeIs('approvals.*')">
-                            Approval
-                        </x-nav-link>
-                    @endif
+                    <x-nav-link :href="route('forms.ict-requests.index')" :active="request()->routeIs('forms.ict-requests.*')">
+                        Permintaan ICT
+                    </x-nav-link>
                     <x-nav-link :href="route('reports.index')" :active="request()->routeIs('reports.index', 'reports.export.*')">
                         Report
                     </x-nav-link>
@@ -89,11 +87,9 @@
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
-            @if (Auth::user()->canProcessApprovals())
-                <x-responsive-nav-link :href="route('approvals.index')" :active="request()->routeIs('approvals.*')">
-                    Approval
-                </x-responsive-nav-link>
-            @endif
+            <x-responsive-nav-link :href="route('forms.ict-requests.index')" :active="request()->routeIs('forms.ict-requests.*')">
+                Permintaan ICT
+            </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('reports.index')" :active="request()->routeIs('reports.index', 'reports.export.*')">
                 Report
             </x-responsive-nav-link>

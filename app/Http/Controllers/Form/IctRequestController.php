@@ -45,6 +45,8 @@ class IctRequestController extends Controller
         $requests->load([
             'requester:id,name',
             'unit:id,name',
+            'staffValidator:id,name,job_title,role',
+            'asmenChecker:id,name,job_title,role',
             'items.quotations',
             'items.ppnkDocument',
             'items.ppmDocument',

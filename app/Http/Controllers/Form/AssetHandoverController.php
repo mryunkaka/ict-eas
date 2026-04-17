@@ -22,7 +22,9 @@ class AssetHandoverController extends Controller
 {
     public function index(Request $request): View
     {
-        abort_unless($request->user()->isIctAdmin() || $request->user()->isSuperAdmin(), 403);
+        if (! $request->user()?->canAccessAssetHandovers()) {
+            abort(403);
+        }
 
         $search = $request->string('search')->toString();
         $perPage = max(10, (int) $request->input('per_page', 20));
@@ -54,7 +56,9 @@ class AssetHandoverController extends Controller
 
     public function create(Request $request): View
     {
-        abort_unless($request->user()->isIctAdmin() || $request->user()->isSuperAdmin(), 403);
+        if (! $request->user()?->canAccessAssetHandovers()) {
+            abort(403);
+        }
 
         $ictRequests = IctRequest::query()
             ->select(['id', 'unit_id', 'form_number', 'subject', 'status', 'created_at'])
@@ -86,7 +90,9 @@ class AssetHandoverController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->isIctAdmin() || $request->user()->isSuperAdmin(), 403);
+        if (! $request->user()?->canAccessAssetHandovers()) {
+            abort(403);
+        }
 
         $validated = $request->validate([
             'ict_request_id' => ['required', 'integer'],
@@ -191,12 +197,14 @@ class AssetHandoverController extends Controller
 
     public function pdf(Request $request, AssetHandover $assetHandover): BinaryFileResponse|Response
     {
-        abort_unless($request->user()->isIctAdmin() || $request->user()->isSuperAdmin(), 403);
+        if (! $request->user()?->canAccessAssetHandovers()) {
+            abort(403);
+        }
 
         $assetHandover->loadMissing(['ictRequest', 'ictRequestItem']);
 
         abort_unless(
-            $request->user()->isSuperAdmin() || $assetHandover->ictRequest?->unit_id === $request->user()->unit_id,
+            $request->user()->isAsmenIct() || $request->user()->isManagerIct() || $request->user()->isSuperAdmin() || $assetHandover->ictRequest?->unit_id === $request->user()->unit_id,
             403
         );
 

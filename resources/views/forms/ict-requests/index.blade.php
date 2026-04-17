@@ -47,6 +47,7 @@
             'confirm_goods_arrival_url' => route('forms.ict-requests.confirm-goods-arrival', $request),
             'goods_receipt_url' => route('forms.ict-requests.goods-receipt.store', $request),
             'verify_audit_url' => route('forms.ict-requests.verify-audit', $request),
+            'validation_url' => route('approvals.ict.update', $request),
             'priority' => strtoupper($request->priority),
             'raw_status' => $request->status,
             'status' => $request->statusLabel(),
@@ -156,6 +157,7 @@
 <x-app-layout>
     @php
         $pageIds = $requests->pluck('id')->map(fn ($id) => (string) $id)->values();
+        $canShowValidationColumn = auth()->user()->canProcessApprovals();
     @endphp
     <script>
         function ictRequestsData() {
@@ -166,6 +168,9 @@
                 totalMatching: @js($requests->count()),
                 detailMap: @js($requestDetails->keyBy('id')),
                 openDetailId: null,
+                validationTarget: null,
+                validationAction: 'approve',
+                validationNote: '',
                 printTarget: null,
                 ppnkTarget: null,
                 ppmTarget: null,
@@ -226,6 +231,31 @@
                         return;
                     }
                     this.printTarget = targetId;
+                },
+                openValidationModal(id) {
+                    this.validationTarget = String(id);
+                    this.validationAction = 'approve';
+                    this.validationNote = '';
+                    this.$nextTick(() => {
+                        if (!this.$refs.validationForm) return;
+                        this.$refs.validationForm.action = this.detailMap[this.validationTarget]?.validation_url ?? '';
+                    });
+                },
+                closeValidationModal() {
+                    this.validationTarget = null;
+                    this.validationAction = 'approve';
+                    this.validationNote = '';
+                    if (this.$refs.validationForm) {
+                        this.$refs.validationForm.reset();
+                    }
+                },
+                submitValidationForm() {
+                    if (!this.validationTarget || !this.$refs.validationForm) return;
+                    if ((this.validationAction === 'revise' || this.validationAction === 'reject') && !this.validationNote.trim()) {
+                        alert('Keterangan wajib diisi untuk aksi Revisi atau Reject.');
+                        return;
+                    }
+                    this.$refs.validationForm.submit();
                 },
                 closePrintModal() {
                     this.printTarget = null;
@@ -463,13 +493,30 @@
                     this.$refs.auditForm.submit();
                 },
                 get allSelectedOnPage() {
-                    return this.pageIds.length > 0 && this.pageIds.every((id) => this.selectedIds.includes(id));
+                    const visibleIds = this.getVisiblePageIds();
+                    return visibleIds.length > 0 && visibleIds.every((id) => this.selectedIds.includes(id));
+                },
+                toggleSelection(id, checked) {
+                    const value = String(id);
+                    if (checked) {
+                        this.selectedIds = Array.from(new Set([...this.selectedIds, value]));
+                    } else {
+                        this.selectedIds = this.selectedIds.filter((itemId) => itemId !== value);
+                        this.selectAllMatching = false;
+                    }
+                },
+                getVisiblePageIds() {
+                    return Array.from(document.querySelectorAll('#ict-requests-table tbody input[data-select-id]'))
+                        .filter((el) => el.offsetParent !== null)
+                        .map((el) => String(el.getAttribute('data-select-id') ?? ''))
+                        .filter(Boolean);
                 },
                 togglePageSelection(event) {
+                    const visibleIds = this.getVisiblePageIds();
                     if (event.target.checked) {
-                        this.selectedIds = Array.from(new Set([...this.selectedIds, ...this.pageIds]));
+                        this.selectedIds = Array.from(new Set([...this.selectedIds, ...visibleIds]));
                     } else {
-                        this.selectedIds = this.selectedIds.filter((id) => !this.pageIds.includes(id));
+                        this.selectedIds = this.selectedIds.filter((id) => !visibleIds.includes(id));
                         this.selectAllMatching = false;
                     }
                 },
@@ -628,6 +675,51 @@
             <x-alert>{{ session('status') }}</x-alert>
         @endif
 
+        <div
+            x-show="validationTarget"
+            x-cloak
+            x-transition.opacity.duration.200ms
+            x-on:keydown.escape.window="closeValidationModal()"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/50 p-4"
+        >
+            <div class="w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl">
+                <h3 class="font-display text-lg font-semibold text-ink-900">Validasi Permintaan ICT</h3>
+                <p class="mt-1 text-sm text-ink-500">Pilih aksi validasi untuk permintaan ini.</p>
+                <form x-ref="validationForm" method="POST" class="mt-4 space-y-4">
+                    @csrf
+                    <div class="space-y-2 text-sm text-ink-700">
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="action" value="approve" x-model="validationAction" class="border-ink-300 text-brand-600 focus:ring-brand-500">
+                            <span>Confirm</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="action" value="revise" x-model="validationAction" class="border-ink-300 text-brand-600 focus:ring-brand-500">
+                            <span>Revisi</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="action" value="reject" x-model="validationAction" class="border-ink-300 text-brand-600 focus:ring-brand-500">
+                            <span>Reject</span>
+                        </label>
+                    </div>
+                    <div x-show="validationAction === 'revise' || validationAction === 'reject'" x-cloak>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-500">Keterangan</label>
+                        <textarea
+                            name="review_note"
+                            rows="3"
+                            x-model="validationNote"
+                            :required="validationAction === 'revise' || validationAction === 'reject'"
+                            class="w-full rounded-2xl border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+                            placeholder="Tulis alasan revisi/reject..."
+                        ></textarea>
+                    </div>
+                    <div class="flex items-center justify-end gap-2">
+                        <x-button type="button" variant="secondary" x-on:click="closeValidationModal()">Batal</x-button>
+                        <x-button type="button" x-on:click="submitValidationForm()">Simpan</x-button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <x-card padding="none" class="ui-page-workspace-card">
             <div class="ui-page-toolbar">
                 <form id="ict-requests-filter-form" method="GET" class="hidden"></form>
@@ -780,6 +872,9 @@
 	                            <th class="ui-table-cell-nowrap">
 	                                <x-sort-link column="status" label="Status" :sort="$sort" :direction="$direction" size="compact" />
 	                            </th>
+                                @if ($canShowValidationColumn)
+                                    <th class="ui-table-cell-nowrap text-center">Validasi</th>
+                                @endif
 	                            <th class="text-right">Aksi</th>
 	                        </tr>
 	                    </thead>
@@ -787,7 +882,14 @@
 	                    @foreach ($requests as $request)
 	                        <tr>
                             <td>
-                                <input type="checkbox" value="{{ $request->id }}" x-model="selectedIds" class="rounded border-ink-300 text-ink-900 focus:ring-ink-400" />
+                                <input
+                                    type="checkbox"
+                                    value="{{ $request->id }}"
+                                    data-select-id="{{ $request->id }}"
+                                    :checked="selectedIds.includes('{{ $request->id }}')"
+                                    x-on:change="toggleSelection('{{ $request->id }}', $event.target.checked)"
+                                    class="rounded border-ink-300 text-ink-900 focus:ring-ink-400"
+                                />
                             </td>
                             <td class="ui-table-cell-nowrap">{{ $request->created_at?->format('d M Y') }}</td>
                             <td>
@@ -832,7 +934,40 @@
                                     default => 'default',
                                 };
                             @endphp
-                            <td class="ui-table-cell-nowrap"><x-badge size="compact" :variant="$statusVariant">{{ $request->statusLabel() }}</x-badge></td>
+                            @php
+                                $currentValidator = null;
+                                $currentValidatedAt = null;
+                                if ($request->status === 'ttd_in_progress' && $request->staffValidator) {
+                                    $currentValidator = $request->staffValidator;
+                                    $currentValidatedAt = $request->staff_validated_at;
+                                } elseif ($request->status === 'checked_by_asmen' && $request->asmenChecker) {
+                                    $currentValidator = $request->asmenChecker;
+                                    $currentValidatedAt = $request->asmen_checked_at;
+                                }
+                                $canOpenValidation = ($request->status === 'drafted' && auth()->user()->isStaffIct())
+                                    || ($request->status === 'ttd_in_progress' && auth()->user()->isAsmenIct());
+                            @endphp
+                            <td class="ui-table-cell-nowrap">
+                                <x-badge size="compact" :variant="$statusVariant">{{ $request->statusLabel() }}</x-badge>
+                                @if ($currentValidator)
+                                    <div class="mt-2 max-w-[220px] text-[11px] leading-relaxed text-ink-500">
+                                        <div>Validasi: {{ $currentValidator->name }}</div>
+                                        <div>Jabatan: {{ $currentValidator->job_title ?: ($currentValidator->role?->label() ?? '-') }}</div>
+                                        <div>Waktu: {{ optional($currentValidatedAt)->format('d M Y H:i') ?? '-' }}</div>
+                                    </div>
+                                @endif
+                            </td>
+                            @if ($canShowValidationColumn)
+                                <td class="ui-table-cell-nowrap text-center">
+                                    @if ($canOpenValidation)
+                                        <x-button type="button" variant="action-approve" size="compact" x-on:click="openValidationModal('{{ $request->id }}')" title="Validasi">
+                                            <x-heroicon-o-check class="ui-action-icon" />
+                                        </x-button>
+                                    @else
+                                        <span class="text-xs text-ink-400">-</span>
+                                    @endif
+                                </td>
+                            @endif
                             <td>
                                 <div class="ui-action-row ui-action-row--compact justify-end">
                                     <x-button type="button" variant="action-neutral" x-on:click="openDetail('{{ $request->id }}')" title="Lihat detail">

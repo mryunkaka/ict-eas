@@ -22,7 +22,7 @@
     ];
     $baseClasses = in_array($variant, $actionVariants, true)
         ? ''
-        : 'inline-flex shrink-0 items-center justify-center whitespace-nowrap font-semibold transition '.($sizes[$size] ?? $sizes['default']);
+        : 'inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap font-semibold transition '.($sizes[$size] ?? $sizes['default']);
 @endphp
 
 @if ($href)

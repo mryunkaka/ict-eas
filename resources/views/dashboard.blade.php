@@ -84,7 +84,7 @@
                 <div class="space-y-3 text-sm text-ink-700">
                     <p>Permintaan ICT: Admin ICT -> Staff ICT -> Asmen ICT -> Manager ICT -> upload PDF final manual.</p>
                     <p>Tanda tangan tetap manual di luar sistem, lalu file PDF lengkap diunggah ulang.</p>
-                    <x-button :href="route('approvals.index')">Buka Approval</x-button>
+                    <x-button :href="route('forms.ict-requests.index')">Buka Permintaan ICT</x-button>
                 </div>
             </x-card>
 

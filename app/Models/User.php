@@ -128,4 +128,11 @@ class User extends Authenticatable
     {
         return $this->isIctAdmin() || $this->isStaffIct() || $this->isAsmenIct() || $this->isManagerIct();
     }
+
+    public function canAccessAssetHandovers(): bool
+    {
+        // Asmen dan di atasnya: full akses lintas unit.
+        // Admin ICT juga tetap boleh akses sesuai kebutuhan operasional.
+        return $this->isAsmenIct() || $this->isManagerIct() || $this->isIctAdmin();
+    }
 }
