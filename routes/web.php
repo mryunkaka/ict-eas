@@ -57,6 +57,8 @@ Route::middleware('auth')->group(function () {
         Route::post('ict-requests/{ictRequest}/goods-receipt', [IctRequestController::class, 'storeGoodsReceipt'])->name('ict-requests.goods-receipt.store');
         Route::get('ict-requests/{ictRequest}/handover-report/{assetHandover}/pdf', [IctRequestController::class, 'handoverReportPdf'])->name('ict-requests.handover-report.pdf');
         Route::get('asset-handovers/{assetHandover}/pdf', [AssetHandoverController::class, 'pdf'])->name('asset-handovers.pdf');
+        Route::post('asset-handovers/{assetHandover}/upload-ttd', [AssetHandoverController::class, 'uploadTtd'])->name('asset-handovers.upload-ttd');
+        Route::delete('asset-handovers/bulk-destroy', [AssetHandoverController::class, 'bulkDestroy'])->name('asset-handovers.bulk-destroy');
         Route::delete('ict-requests/bulk-destroy', [IctRequestController::class, 'bulkDestroy'])->name('ict-requests.bulk-destroy');
         Route::delete('ict-requests/{ictRequest}/permanent', [IctRequestController::class, 'permanentDestroy'])->name('ict-requests.permanent-destroy');
         Route::resource('ict-requests', IctRequestController::class)->only(['index', 'create', 'store', 'edit', 'update']);

@@ -14,12 +14,12 @@
     <body>
 	        @php
 	            $user = auth()->user();
-                $profileJobTitle = $user->job_title ?: ($user->role?->label() ?? '-');
+                $profileJobTitle = $user?->job_title ?: ($user?->role?->label() ?? '-');
 
 	            $primaryMenu = array_values(array_filter([
 	                ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => request()->routeIs('dashboard'), 'icon' => 'heroicon-o-squares-2x2'],
 	                ['label' => 'Permintaan ICT', 'route' => 'forms.ict-requests.index', 'active' => request()->routeIs('forms.ict-requests.*'), 'icon' => 'heroicon-o-computer-desktop'],
-	                $user->canAccessAssetHandovers() ? ['label' => 'Serah Terima', 'route' => 'forms.asset-handovers.index', 'active' => request()->routeIs('forms.asset-handovers.*'), 'icon' => 'heroicon-o-document-text'] : null,
+	                ($user?->canAccessAssetHandovers() ?? false) ? ['label' => 'Serah Terima', 'route' => 'forms.asset-handovers.index', 'active' => request()->routeIs('forms.asset-handovers.*'), 'icon' => 'heroicon-o-document-text'] : null,
 	                ['label' => 'Permohonan Email', 'route' => 'forms.email-requests.index', 'active' => request()->routeIs('forms.email-requests.*'), 'icon' => 'heroicon-o-envelope'],
 	                ['label' => 'Perbaikan ICT', 'route' => 'forms.repairs.index', 'active' => request()->routeIs('forms.repairs.*'), 'icon' => 'heroicon-o-wrench-screwdriver'],
 	                ['label' => 'BAK / Insiden', 'route' => 'forms.incidents.index', 'active' => request()->routeIs('forms.incidents.*'), 'icon' => 'heroicon-o-exclamation-triangle'],
@@ -31,10 +31,10 @@
             $adminMenu = array_values(array_filter([
                 ['label' => 'Report', 'route' => 'reports.index', 'active' => request()->routeIs('reports.index', 'reports.export.*'), 'icon' => 'heroicon-o-chart-bar-square'],
                 ['label' => 'Laporan/Rekap Permintaan ICT', 'route' => 'reports.monitoring-pp', 'active' => request()->routeIs('reports.monitoring-pp'), 'icon' => 'heroicon-o-table-cells'],
-                $user->canManageUsers() ? ['label' => 'User Management', 'route' => 'tools.users.index', 'active' => request()->routeIs('tools.users.*'), 'icon' => 'heroicon-o-users'] : null,
-	                $user->canManageUsers() ? ['label' => 'Ping Server', 'route' => 'tools.ping.index', 'active' => request()->routeIs('tools.ping.*'), 'icon' => 'heroicon-o-server-stack'] : null,
-	                $user->canManageUsers() ? ['label' => 'DB Connection', 'route' => 'tools.db-connection.index', 'active' => request()->routeIs('tools.db-connection.*'), 'icon' => 'heroicon-o-circle-stack'] : null,
-                    $user->canManageUsers() ? ['label' => 'SQL Sync', 'route' => 'tools.sql-sync.index', 'active' => request()->routeIs('tools.sql-sync.*'), 'icon' => 'heroicon-o-arrow-down-tray'] : null,
+                ($user?->canManageUsers() ?? false) ? ['label' => 'User Management', 'route' => 'tools.users.index', 'active' => request()->routeIs('tools.users.*'), 'icon' => 'heroicon-o-users'] : null,
+	                ($user?->canManageUsers() ?? false) ? ['label' => 'Ping Server', 'route' => 'tools.ping.index', 'active' => request()->routeIs('tools.ping.*'), 'icon' => 'heroicon-o-server-stack'] : null,
+	                ($user?->canManageUsers() ?? false) ? ['label' => 'DB Connection', 'route' => 'tools.db-connection.index', 'active' => request()->routeIs('tools.db-connection.*'), 'icon' => 'heroicon-o-circle-stack'] : null,
+                    ($user?->canManageUsers() ?? false) ? ['label' => 'SQL Sync', 'route' => 'tools.sql-sync.index', 'active' => request()->routeIs('tools.sql-sync.*'), 'icon' => 'heroicon-o-arrow-down-tray'] : null,
 	            ]));
 
 	            $pageTitle = match (true) {
@@ -129,25 +129,32 @@
 	                        <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
                                 <div class="flex items-stretch gap-3">
                                     <div class="min-w-0 flex-1 space-y-1.5">
-                                        <div class="truncate text-sm font-semibold text-white">{{ $user->name }}</div>
+                                        <div class="truncate text-sm font-semibold text-white">{{ $user?->name ?? 'Guest' }}</div>
                                         <div class="text-xs text-white/70">{{ $profileJobTitle }}</div>
-                                        <div class="text-xs text-white/60">Unit: {{ $user->unit?->name ?? '-' }}</div>
+                                        <div class="text-xs text-white/60">Unit: {{ $user?->unit?->name ?? '-' }}</div>
                                     </div>
 
                                     <div class="w-px self-stretch bg-white/15"></div>
 
 	                                <div class="flex w-[120px] flex-col justify-center gap-1.5">
-	                                    <a href="{{ route('profile.edit') }}" class="ui-sidebar-mini-action">
-	                                        <x-heroicon-o-user-circle class="h-4 w-4 shrink-0" />
-	                                        <span>Profil</span>
-	                                    </a>
-	                                    <form method="POST" action="{{ route('logout') }}">
-	                                        @csrf
-	                                        <button type="submit" class="ui-sidebar-mini-action w-full text-left">
-	                                            <x-heroicon-o-arrow-right-on-rectangle class="h-4 w-4 shrink-0" />
-	                                            <span>Logout</span>
-	                                        </button>
-	                                    </form>
+                                        @if ($user)
+	                                        <a href="{{ route('profile.edit') }}" class="ui-sidebar-mini-action">
+	                                            <x-heroicon-o-user-circle class="h-4 w-4 shrink-0" />
+	                                            <span>Profil</span>
+	                                        </a>
+	                                        <form method="POST" action="{{ route('logout') }}">
+	                                            @csrf
+	                                            <button type="submit" class="ui-sidebar-mini-action w-full text-left">
+	                                                <x-heroicon-o-arrow-right-on-rectangle class="h-4 w-4 shrink-0" />
+	                                                <span>Logout</span>
+	                                            </button>
+	                                        </form>
+                                        @else
+                                            <a href="{{ route('login') }}" class="ui-sidebar-mini-action">
+                                                <x-heroicon-o-arrow-right-on-rectangle class="h-4 w-4 shrink-0" />
+                                                <span>Login</span>
+                                            </a>
+                                        @endif
 	                                </div>
                                 </div>
                             </div>
@@ -175,8 +182,8 @@
 	                    </div>
 	                </header>
 
-                <main class="ui-admin-content">
-                    <div class="ui-admin-content-inner">
+                <main class="ui-admin-content is-page-scroll-locked">
+                    <div class="ui-admin-content-inner is-page-scroll-locked">
                         {{ $slot }}
                     </div>
                 </main>

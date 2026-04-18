@@ -43,6 +43,10 @@
                         <td class="px-4 py-3">{{ strtoupper($request->access_level) }}</td>
                         <td class="px-4 py-3"><x-badge variant="warning">{{ strtoupper($request->status) }}</x-badge></td>
                     </tr>
+                @empty
+                    <tr>
+                        <td colspan="4" class="px-4 py-6 text-center text-ink-500">Belum ada data permohonan email.</td>
+                    </tr>
                 @endforelse
             </tbody>
         </x-table>

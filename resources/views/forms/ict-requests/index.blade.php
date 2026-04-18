@@ -885,7 +885,7 @@
     </script>
     <div
         x-data="ictRequestsData()"
-        class="ui-page-workspace"
+        class="ui-page-workspace ui-page-workspace--flush-top"
     >
         @if (session('status'))
             <x-alert>{{ session('status') }}</x-alert>
@@ -937,9 +937,6 @@
         </div>
 
         <x-card padding="none" class="ui-page-workspace-card">
-            <div class="ui-page-toolbar">
-                <form id="ict-requests-filter-form" method="GET" class="hidden"></form>
-            </div>
 
             <div class="ui-page-table-content">
 	            @if (auth()->user()->canCreateIctRequest())
