@@ -334,11 +334,28 @@
                 $itemType = $item->item_category ?: $item->item_name;
                 $itemQuantity = max((int) ($item->quantity ?? 1), 1);
                 $assetPhotoDataUri = null;
-                $assetPhotoPath = $item->photo_path ? storage_path('app/public/'.$item->photo_path) : null;
-
-                if ($assetPhotoPath && is_file($assetPhotoPath)) {
-                    $mimeType = mime_content_type($assetPhotoPath) ?: 'image/jpeg';
-                    $assetPhotoDataUri = 'data:'.$mimeType.';base64,'.base64_encode((string) file_get_contents($assetPhotoPath));
+                $assetPhotoAlt = $item->item_name;
+                $serahTerimaIsNonImage = false;
+                // Foto di PDF: utamakan Upload Foto Barang (serah terima) per unit; fallback ke foto lampiran item pengadaan hanya jika belum ada unggahan non-gambar.
+                $serahPath = $handover->serah_terima_path ? storage_path('app/public/'.$handover->serah_terima_path) : null;
+                if ($serahPath && is_file($serahPath)) {
+                    $mimeType = mime_content_type($serahPath) ?: 'application/octet-stream';
+                    if (str_starts_with((string) $mimeType, 'image/')) {
+                        $assetPhotoDataUri = 'data:'.$mimeType.';base64,'.base64_encode((string) file_get_contents($serahPath));
+                        $assetPhotoAlt = $handover->serah_terima_name ?: $assetPhotoAlt;
+                    } else {
+                        $serahTerimaIsNonImage = true;
+                    }
+                }
+                if (! $assetPhotoDataUri && ! $serahTerimaIsNonImage) {
+                    $itemPhotoPath = $item->photo_path ? storage_path('app/public/'.$item->photo_path) : null;
+                    if ($itemPhotoPath && is_file($itemPhotoPath)) {
+                        $mimeType = mime_content_type($itemPhotoPath) ?: 'image/jpeg';
+                        if (str_starts_with((string) $mimeType, 'image/')) {
+                            $assetPhotoDataUri = 'data:'.$mimeType.';base64,'.base64_encode((string) file_get_contents($itemPhotoPath));
+                            $assetPhotoAlt = $item->photo_name ?: $item->item_name;
+                        }
+                    }
                 }
             @endphp
 
@@ -592,12 +609,18 @@
             </table>
 
             <div class="asset-photo-box">
-                <div class="asset-photo-label">Foto Asset</div>
+                <div class="asset-photo-label">Foto Barang (dokumentasi serah terima)</div>
                 <div class="asset-photo-frame">
                     @if ($assetPhotoDataUri)
-                        <img src="{{ $assetPhotoDataUri }}" alt="{{ $item->photo_name ?: $item->item_name }}">
+                        <img src="{{ $assetPhotoDataUri }}" alt="{{ $assetPhotoAlt }}">
                     @else
-                        <div class="asset-photo-empty">Tidak ada foto asset</div>
+                        <div class="asset-photo-empty">
+                            @if ($serahTerimaIsNonImage)
+                                Lampiran serah terima bukan gambar (mis. PDF). Unggah foto JPG/PNG di penerimaan barang agar tampil di berita acara.
+                            @else
+                                Belum ada foto unggahan penerimaan barang
+                            @endif
+                        </div>
                     @endif
                 </div>
             </div>

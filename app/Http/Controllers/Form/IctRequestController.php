@@ -1565,6 +1565,8 @@ class IctRequestController extends Controller
 
         $ictRequest->loadMissing(['items', 'unit']);
 
+        $savedAny = false;
+
         foreach ($validated['items'] as $itemData) {
             $ictRequestItem = $ictRequest->items->firstWhere('id', (int) $itemData['item_id']);
             abort_unless($ictRequestItem, 422);
@@ -1583,7 +1585,19 @@ class IctRequestController extends Controller
                 ])->withInput();
             }
 
-            $this->validateGoodsReceiptUnitRow($itemData);
+            if (! $this->goodsReceiptUnitRowIsSubstantive($itemData)) {
+                continue;
+            }
+
+            $inputComplete = ($itemData['handover_type'] ?? '') === 'asset'
+                ? $this->goodsReceiptUnitInputCompleteForAsset($itemData)
+                : $this->goodsReceiptUnitInputCompleteForNonAsset($itemData);
+
+            if ($inputComplete) {
+                $this->validateGoodsReceiptUnitRow($itemData);
+            } else {
+                $this->validateGoodsReceiptUnitDraft($itemData);
+            }
 
             $existing = AssetHandover::query()
                 ->where('ict_request_item_id', $ictRequestItem->id)
@@ -1711,40 +1725,43 @@ class IctRequestController extends Controller
 
             $handover->fill($handoverData);
             $handover->save();
+            $savedAny = true;
 
             if ($itemData['handover_type'] === 'asset') {
-                if ($handover->asset_id) {
-                    Asset::query()->whereKey($handover->asset_id)->update([
-                        'asset_number' => $itemData['asset_number'] ?? null,
-                        'name' => $ictRequestItem->item_name,
-                        'brand' => $ictRequestItem->brand_type,
-                        'model' => $itemData['model_specification'] ?? null,
-                        'serial_number' => $itemData['serial_number'] ?? null,
-                        'specification' => ! empty($itemData['model_specification']) ? ['description' => $itemData['model_specification']] : null,
-                        'location' => $itemData['dept'] ?? null,
-                        'purchase_date' => $goodsReceiptDate,
-                    ]);
-                } else {
-                    $asset = Asset::create([
-                        'unit_id' => $ictRequest->unit_id,
-                        'assigned_user_id' => null,
-                        'uuid' => Str::uuid()->toString(),
-                        'asset_number' => $itemData['asset_number'] ?? null,
-                        'category' => $ictRequestItem->item_category ?? 'hardware',
-                        'name' => $ictRequestItem->item_name,
-                        'brand' => $ictRequestItem->brand_type,
-                        'model' => $itemData['model_specification'] ?? null,
-                        'serial_number' => $itemData['serial_number'] ?? null,
-                        'specification' => ! empty($itemData['model_specification']) ? ['description' => $itemData['model_specification']] : null,
-                        'location' => $itemData['dept'] ?? null,
-                        'purchase_date' => $goodsReceiptDate,
-                        'condition_status' => 'good',
-                        'lifecycle_status' => 'active',
-                    ]);
-                    $handover->update(['asset_id' => $asset->id]);
-                }
+                if ($inputComplete) {
+                    if ($handover->asset_id) {
+                        Asset::query()->whereKey($handover->asset_id)->update([
+                            'asset_number' => $itemData['asset_number'] ?? null,
+                            'name' => $ictRequestItem->item_name,
+                            'brand' => $ictRequestItem->brand_type,
+                            'model' => $itemData['model_specification'] ?? null,
+                            'serial_number' => $itemData['serial_number'] ?? null,
+                            'specification' => ! empty($itemData['model_specification']) ? ['description' => $itemData['model_specification']] : null,
+                            'location' => $itemData['dept'] ?? null,
+                            'purchase_date' => $goodsReceiptDate,
+                        ]);
+                    } else {
+                        $asset = Asset::create([
+                            'unit_id' => $ictRequest->unit_id,
+                            'assigned_user_id' => null,
+                            'uuid' => Str::uuid()->toString(),
+                            'asset_number' => $itemData['asset_number'] ?? null,
+                            'category' => $ictRequestItem->item_category ?? 'hardware',
+                            'name' => $ictRequestItem->item_name,
+                            'brand' => $ictRequestItem->brand_type,
+                            'model' => $itemData['model_specification'] ?? null,
+                            'serial_number' => $itemData['serial_number'] ?? null,
+                            'specification' => ! empty($itemData['model_specification']) ? ['description' => $itemData['model_specification']] : null,
+                            'location' => $itemData['dept'] ?? null,
+                            'purchase_date' => $goodsReceiptDate,
+                            'condition_status' => 'good',
+                            'lifecycle_status' => 'active',
+                        ]);
+                        $handover->update(['asset_id' => $asset->id]);
+                    }
 
-                $this->generateHandoverReport($handover->fresh(), $ictRequest, $ictRequestItem);
+                    $this->generateHandoverReport($handover->fresh(), $ictRequest, $ictRequestItem);
+                }
             } else {
                 if ($handover->handover_report_path) {
                     Storage::disk('public')->delete($handover->handover_report_path);
@@ -1756,6 +1773,10 @@ class IctRequestController extends Controller
                     'asset_id' => null,
                 ]);
             }
+        }
+
+        if (! $savedAny) {
+            return back()->with('status', 'Tidak ada unit yang disimpan. Isi data atau unggah file pada unit yang ingin disimpan (unit kosong tidak diproses).');
         }
 
         $ictRequest->refresh()->load('items.assetHandovers');
@@ -1770,6 +1791,79 @@ class IctRequestController extends Controller
         }
 
         return back()->with('status', 'Progres penerimaan barang disimpan. Lengkapi semua unit (sesuai qty per baris) agar status menjadi Barang Telah Diserahkan.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $itemData
+     */
+    protected function goodsReceiptUnitRowIsSubstantive(array $itemData): bool
+    {
+        if (isset($itemData['serah_terima']) && $itemData['serah_terima'] instanceof UploadedFile) {
+            return true;
+        }
+        if (isset($itemData['surat_jalan']) && $itemData['surat_jalan'] instanceof UploadedFile) {
+            return true;
+        }
+        if (! empty($itemData['serah_terima_temp_path']) && ! empty($itemData['serah_terima_temp_original_name'])) {
+            return true;
+        }
+        if (! empty($itemData['surat_jalan_temp_path']) && ! empty($itemData['surat_jalan_temp_original_name'])) {
+            return true;
+        }
+
+        $keys = ['dept', 'model_specification', 'serial_number', 'asset_number', 'recipient_name', 'recipient_position', 'supervisor_name', 'supervisor_position', 'witness_name', 'witness_position', 'deliverer_name', 'deliverer_position', 'description'];
+
+        foreach ($keys as $key) {
+            if (strlen(trim((string) ($itemData[$key] ?? ''))) > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $itemData
+     */
+    protected function goodsReceiptUnitInputCompleteForAsset(array $itemData): bool
+    {
+        return filled(trim((string) ($itemData['dept'] ?? '')))
+            && filled(trim((string) ($itemData['model_specification'] ?? '')))
+            && filled(trim((string) ($itemData['serial_number'] ?? '')))
+            && filled(trim((string) ($itemData['recipient_name'] ?? '')))
+            && filled(trim((string) ($itemData['deliverer_name'] ?? '')))
+            && filled(trim((string) ($itemData['witness_name'] ?? '')));
+    }
+
+    /**
+     * @param  array<string, mixed>  $itemData
+     */
+    protected function goodsReceiptUnitInputCompleteForNonAsset(array $itemData): bool
+    {
+        return strlen(trim((string) ($itemData['description'] ?? ''))) >= 3;
+    }
+
+    /**
+     * @param  array<string, mixed>  $itemData
+     */
+    protected function validateGoodsReceiptUnitDraft(array $itemData): void
+    {
+        validator($itemData, [
+            'handover_type' => ['required', 'in:asset,non_asset'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'dept' => ['nullable', 'string', 'max:255'],
+            'model_specification' => ['nullable', 'string', 'max:500'],
+            'serial_number' => ['nullable', 'string', 'max:255'],
+            'asset_number' => ['nullable', 'string', 'max:255'],
+            'recipient_name' => ['nullable', 'string', 'max:255'],
+            'recipient_position' => ['nullable', 'string', 'max:255'],
+            'supervisor_name' => ['nullable', 'string', 'max:255'],
+            'supervisor_position' => ['nullable', 'string', 'max:255'],
+            'witness_name' => ['nullable', 'string', 'max:255'],
+            'witness_position' => ['nullable', 'string', 'max:255'],
+            'deliverer_name' => ['nullable', 'string', 'max:255'],
+            'deliverer_position' => ['nullable', 'string', 'max:255'],
+        ])->validate();
     }
 
     /**

@@ -135,6 +135,10 @@
                     'deliverer_position' => $h->deliverer_position,
                     'has_surat_jalan' => (bool) $h->surat_jalan_path,
                     'has_serah_terima' => (bool) $h->serah_terima_path,
+                    'surat_jalan_name' => $h->surat_jalan_name,
+                    'serah_terima_name' => $h->serah_terima_name,
+                    'surat_jalan_url' => $h->surat_jalan_path ? \Illuminate\Support\Facades\Storage::url($h->surat_jalan_path) : null,
+                    'serah_terima_url' => $h->serah_terima_path ? \Illuminate\Support\Facades\Storage::url($h->serah_terima_path) : null,
                 ])->all(),
                 'handover_type' => $item->assetHandovers->sortBy('unit_index')->first()?->handover_type,
                 'handover_description' => $item->assetHandovers->sortBy('unit_index')->first()?->description,
@@ -2190,6 +2194,11 @@
                                                         <button type="button" x-on:click="removeGoodsReceiptTemp(index, 'surat_jalan')" class="rounded-md border border-ink-200 bg-white px-2 py-0.5 font-semibold hover:bg-ink-100">Unlink</button>
                                                     </div>
                                                 </template>
+                                                <p class="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-emerald-700" x-show="grItem.handover_saved?.surat_jalan_name && !goodsReceiptTemps[`${index}:surat_jalan`]?.path">
+                                                    <span class="font-medium">Tersimpan:</span>
+                                                    <a x-show="grItem.handover_saved?.surat_jalan_url" :href="grItem.handover_saved.surat_jalan_url" target="_blank" class="max-w-[14rem] truncate underline text-brand-700" x-text="grItem.handover_saved.surat_jalan_name"></a>
+                                                    <span x-show="!grItem.handover_saved?.surat_jalan_url" class="max-w-[14rem] truncate" x-text="grItem.handover_saved?.surat_jalan_name"></span>
+                                                </p>
                                             </div>
                                         </div>
                                     </template>
@@ -2304,7 +2313,7 @@
                                                         type="text"
                                                         :name="`items[${index}][deliverer_name]`"
                                                         :placeholder="detailMap[goodsReceiptTarget]?.previous_deliverer?.name || 'Nama penyerah dari HRGA'"
-                                                        :value="grItem.handover_saved?.deliverer_name || detailMap[goodsReceiptTarget]?.previous_deliverer?.name || ''"
+                                                        :value="grItem.handover_saved?.deliverer_name || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2314,7 +2323,7 @@
                                                         type="text"
                                                         :name="`items[${index}][deliverer_position]`"
                                                         :placeholder="detailMap[goodsReceiptTarget]?.previous_deliverer?.position || 'Jabatan HRGA'"
-                                                        :value="grItem.handover_saved?.deliverer_position || detailMap[goodsReceiptTarget]?.previous_deliverer?.position || ''"
+                                                        :value="grItem.handover_saved?.deliverer_position || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2331,7 +2340,7 @@
                                                         type="text"
                                                         :name="`items[${index}][witness_name]`"
                                                         :placeholder="detailMap[goodsReceiptTarget]?.staff_ict?.name || 'Nama staff ICT'"
-                                                        :value="grItem.handover_saved?.witness_name || detailMap[goodsReceiptTarget]?.staff_ict?.name || ''"
+                                                        :value="grItem.handover_saved?.witness_name || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2341,7 +2350,7 @@
                                                         type="text"
                                                         :name="`items[${index}][witness_position]`"
                                                         :placeholder="detailMap[goodsReceiptTarget]?.staff_ict?.position || 'Jabatan staff ICT'"
-                                                        :value="grItem.handover_saved?.witness_position || detailMap[goodsReceiptTarget]?.staff_ict?.position || ''"
+                                                        :value="grItem.handover_saved?.witness_position || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2368,6 +2377,11 @@
                                                         <button type="button" x-on:click="removeGoodsReceiptTemp(index, 'surat_jalan')" class="rounded-md border border-ink-200 bg-white px-2 py-0.5 font-semibold hover:bg-ink-100">Unlink</button>
                                                     </div>
                                                 </template>
+                                                <p class="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-emerald-700" x-show="grItem.handover_saved?.surat_jalan_name && !goodsReceiptTemps[`${index}:surat_jalan`]?.path">
+                                                    <span class="font-medium">Tersimpan:</span>
+                                                    <a x-show="grItem.handover_saved?.surat_jalan_url" :href="grItem.handover_saved.surat_jalan_url" target="_blank" class="max-w-[14rem] truncate underline text-brand-700" x-text="grItem.handover_saved.surat_jalan_name"></a>
+                                                    <span x-show="!grItem.handover_saved?.surat_jalan_url" class="max-w-[14rem] truncate" x-text="grItem.handover_saved?.surat_jalan_name"></span>
+                                                </p>
                                             </div>
                                             <div>
                                                 <label class="block text-xs font-medium text-ink-600">Upload Foto Barang</label>
@@ -2389,6 +2403,11 @@
                                                         <button type="button" x-on:click="removeGoodsReceiptTemp(index, 'serah_terima')" class="rounded-md border border-ink-200 bg-white px-2 py-0.5 font-semibold hover:bg-ink-100">Unlink</button>
                                                     </div>
                                                 </template>
+                                                <p class="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-emerald-700" x-show="grItem.handover_saved?.serah_terima_name && !goodsReceiptTemps[`${index}:serah_terima`]?.path">
+                                                    <span class="font-medium">Tersimpan:</span>
+                                                    <a x-show="grItem.handover_saved?.serah_terima_url" :href="grItem.handover_saved.serah_terima_url" target="_blank" class="max-w-[14rem] truncate underline text-brand-700" x-text="grItem.handover_saved.serah_terima_name"></a>
+                                                    <span x-show="!grItem.handover_saved?.serah_terima_url" class="max-w-[14rem] truncate" x-text="grItem.handover_saved?.serah_terima_name"></span>
+                                                </p>
                                             </div>
                                         </div>
                                         </div>
@@ -2400,7 +2419,7 @@
 
                     <div class="border-t border-ink-100 px-5 py-4">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <p class="text-xs text-ink-500">Simpan bisa dilakukan per tahap. Status menjadi Barang Telah Diserahkan hanya jika setiap unit (sesuai qty) sudah terisi lengkap. Asset mendapat Berita Acara otomatis.</p>
+                            <p class="text-xs text-ink-500">Simpan bertahap: hanya unit yang punya isian atau unggahan file yang diproses (baris kosong diabaikan). Status menjadi Barang Telah Diserahkan hanya jika setiap unit (sesuai qty) sudah terisi lengkap. Berita Acara dibuat setelah data asset untuk unit tersebut lengkap.</p>
                             <div class="flex justify-end gap-2">
                                 <x-button type="button" variant="secondary" x-on:click="closeGoodsReceiptModal()" class="px-4 py-2.5">Batal</x-button>
                                 <x-button type="submit" class="px-4 py-2.5">
