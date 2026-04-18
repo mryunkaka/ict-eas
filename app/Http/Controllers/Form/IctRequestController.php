@@ -51,7 +51,7 @@ class IctRequestController extends Controller
             'items.ppnkDocument',
             'items.ppmDocument',
             'items.poDocument',
-            'items.assetHandover',
+            'items.assetHandovers',
             'quotations',
         ]);
 
@@ -1535,6 +1535,7 @@ class IctRequestController extends Controller
             'goods_receipt_date' => ['required', 'date'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'integer'],
+            'items.*.unit_index' => ['required', 'integer', 'min:0'],
             'items.*.handover_type' => ['required', 'in:asset,non_asset'],
 
             // Common fields
@@ -1565,18 +1566,56 @@ class IctRequestController extends Controller
         $ictRequest->loadMissing(['items', 'unit']);
 
         foreach ($validated['items'] as $itemData) {
-            $ictRequestItem = $ictRequest->items->firstWhere('id', $itemData['item_id']);
+            $ictRequestItem = $ictRequest->items->firstWhere('id', (int) $itemData['item_id']);
             abort_unless($ictRequestItem, 422);
 
-            $handoverData = [
+            if (($ictRequestItem->audit_status ?? '') === 'takeout') {
+                return back()->withErrors([
+                    'items' => "Item «{$ictRequestItem->item_name}» di-takeout dan tidak diproses di penerimaan barang.",
+                ])->withInput();
+            }
+
+            $unitIndex = (int) $itemData['unit_index'];
+            $qty = max(0, (int) $ictRequestItem->quantity);
+            if ($qty === 0 || $unitIndex < 0 || $unitIndex >= $qty) {
+                return back()->withErrors([
+                    'items' => 'Unit ke-'.($unitIndex + 1)." tidak valid untuk baris «{$ictRequestItem->item_name}» (qty: {$qty}).",
+                ])->withInput();
+            }
+
+            $this->validateGoodsReceiptUnitRow($itemData);
+
+            $existing = AssetHandover::query()
+                ->where('ict_request_item_id', $ictRequestItem->id)
+                ->where('unit_index', $unitIndex)
+                ->first();
+
+            if ($existing && $existing->handover_type === 'asset' && $itemData['handover_type'] === 'non_asset' && $existing->asset_id) {
+                if ($existing->handover_report_path) {
+                    Storage::disk('public')->delete($existing->handover_report_path);
+                }
+                Asset::query()->whereKey($existing->asset_id)->delete();
+            }
+
+            $preservedFiles = $existing ? [
+                'serah_terima_path' => $existing->serah_terima_path,
+                'serah_terima_name' => $existing->serah_terima_name,
+                'serah_terima_size' => $existing->serah_terima_size,
+                'serah_terima_mime' => $existing->serah_terima_mime,
+                'surat_jalan_path' => $existing->surat_jalan_path,
+                'surat_jalan_name' => $existing->surat_jalan_name,
+                'surat_jalan_size' => $existing->surat_jalan_size,
+                'surat_jalan_mime' => $existing->surat_jalan_mime,
+            ] : [];
+
+            $handoverData = array_merge($preservedFiles, [
                 'ict_request_id' => $ictRequest->id,
                 'ict_request_item_id' => $ictRequestItem->id,
+                'unit_index' => $unitIndex,
                 'handover_type' => $itemData['handover_type'],
                 'received_at' => $goodsReceiptDate,
-                'created_by' => $request->user()->id,
-            ];
+            ]);
 
-            // Handle file uploads for non-asset or common documents
             if (isset($itemData['serah_terima']) && $itemData['serah_terima'] instanceof UploadedFile) {
                 $stored = $this->storeHandoverAttachment($itemData['serah_terima'], 'serah_terima');
                 $handoverData['serah_terima_path'] = $stored['path'];
@@ -1592,7 +1631,7 @@ class IctRequestController extends Controller
                 );
                 if (! $stored) {
                     return back()->withErrors([
-                        'items' => "File temp serah terima untuk item {$ictRequestItem->item_name} tidak ditemukan. Upload ulang file lalu simpan lagi.",
+                        'items' => "File temp serah terima untuk «{$ictRequestItem->item_name}» (unit ".($unitIndex + 1).') tidak ditemukan. Upload ulang lalu simpan lagi.',
                     ])->withInput();
                 }
                 $handoverData['serah_terima_path'] = $stored['path'];
@@ -1616,7 +1655,7 @@ class IctRequestController extends Controller
                 );
                 if (! $stored) {
                     return back()->withErrors([
-                        'items' => "File temp surat jalan untuk item {$ictRequestItem->item_name} tidak ditemukan. Upload ulang file lalu simpan lagi.",
+                        'items' => "File temp surat jalan untuk «{$ictRequestItem->item_name}» (unit ".($unitIndex + 1).') tidak ditemukan. Upload ulang lalu simpan lagi.',
                     ])->withInput();
                 }
                 $handoverData['surat_jalan_path'] = $stored['path'];
@@ -1625,7 +1664,6 @@ class IctRequestController extends Controller
                 $handoverData['surat_jalan_mime'] = $stored['mime'];
             }
 
-            // Handle asset-specific data
             if ($itemData['handover_type'] === 'asset') {
                 $handoverData = array_merge($handoverData, [
                     'dept' => $itemData['dept'] ?? null,
@@ -1640,47 +1678,165 @@ class IctRequestController extends Controller
                     'witness_position' => $itemData['witness_position'] ?? null,
                     'deliverer_name' => $itemData['deliverer_name'] ?? null,
                     'deliverer_position' => $itemData['deliverer_position'] ?? null,
+                    'description' => null,
                 ]);
-
-                // Create asset record
-                $asset = Asset::create([
-                    'unit_id' => $ictRequest->unit_id,
-                    'assigned_user_id' => null,
-                    'uuid' => Str::uuid()->toString(),
-                    'asset_number' => $itemData['asset_number'] ?? null,
-                    'category' => $ictRequestItem->item_category ?? 'hardware',
-                    'name' => $ictRequestItem->item_name,
-                    'brand' => $ictRequestItem->brand_type,
-                    'model' => $itemData['model_specification'] ?? null,
-                    'serial_number' => $itemData['serial_number'] ?? null,
-                    'specification' => $itemData['model_specification'] ? ['description' => $itemData['model_specification']] : null,
-                    'location' => $itemData['dept'] ?? null,
-                    'purchase_date' => $goodsReceiptDate,
-                    'condition_status' => 'good',
-                    'lifecycle_status' => 'active',
-                ]);
-
-                $handoverData['asset_id'] = $asset->id;
             } else {
-                // Non-asset: only description
-                $handoverData['description'] = $itemData['description'] ?? null;
+                $handoverData = array_merge($handoverData, [
+                    'description' => $itemData['description'] ?? null,
+                    'dept' => null,
+                    'model_specification' => null,
+                    'serial_number' => null,
+                    'asset_number' => null,
+                    'recipient_name' => null,
+                    'recipient_position' => null,
+                    'supervisor_name' => null,
+                    'supervisor_position' => null,
+                    'witness_name' => null,
+                    'witness_position' => null,
+                    'deliverer_name' => null,
+                    'deliverer_position' => null,
+                    'asset_id' => null,
+                ]);
             }
 
-            $handover = AssetHandover::create($handoverData);
+            $handover = AssetHandover::query()->firstOrNew([
+                'ict_request_item_id' => $ictRequestItem->id,
+                'unit_index' => $unitIndex,
+            ]);
 
-            // Generate handover report (Berita Acara) for asset type
+            if (! $handover->exists) {
+                $handover->ict_request_id = $ictRequest->id;
+                $handover->created_by = $request->user()->id;
+            }
+
+            $handover->fill($handoverData);
+            $handover->save();
+
             if ($itemData['handover_type'] === 'asset') {
-                $this->generateHandoverReport($handover, $ictRequest, $ictRequestItem);
+                if ($handover->asset_id) {
+                    Asset::query()->whereKey($handover->asset_id)->update([
+                        'asset_number' => $itemData['asset_number'] ?? null,
+                        'name' => $ictRequestItem->item_name,
+                        'brand' => $ictRequestItem->brand_type,
+                        'model' => $itemData['model_specification'] ?? null,
+                        'serial_number' => $itemData['serial_number'] ?? null,
+                        'specification' => ! empty($itemData['model_specification']) ? ['description' => $itemData['model_specification']] : null,
+                        'location' => $itemData['dept'] ?? null,
+                        'purchase_date' => $goodsReceiptDate,
+                    ]);
+                } else {
+                    $asset = Asset::create([
+                        'unit_id' => $ictRequest->unit_id,
+                        'assigned_user_id' => null,
+                        'uuid' => Str::uuid()->toString(),
+                        'asset_number' => $itemData['asset_number'] ?? null,
+                        'category' => $ictRequestItem->item_category ?? 'hardware',
+                        'name' => $ictRequestItem->item_name,
+                        'brand' => $ictRequestItem->brand_type,
+                        'model' => $itemData['model_specification'] ?? null,
+                        'serial_number' => $itemData['serial_number'] ?? null,
+                        'specification' => ! empty($itemData['model_specification']) ? ['description' => $itemData['model_specification']] : null,
+                        'location' => $itemData['dept'] ?? null,
+                        'purchase_date' => $goodsReceiptDate,
+                        'condition_status' => 'good',
+                        'lifecycle_status' => 'active',
+                    ]);
+                    $handover->update(['asset_id' => $asset->id]);
+                }
+
+                $this->generateHandoverReport($handover->fresh(), $ictRequest, $ictRequestItem);
+            } else {
+                if ($handover->handover_report_path) {
+                    Storage::disk('public')->delete($handover->handover_report_path);
+                }
+                $handover->update([
+                    'handover_report_path' => null,
+                    'handover_report_name' => null,
+                    'handover_report_generated_at' => null,
+                    'asset_id' => null,
+                ]);
             }
         }
 
-        // Update status to completed after all items processed
-        $ictRequest->update([
-            'status' => 'completed',
-            'goods_delivered_at' => $goodsReceiptDate,
-        ]);
+        $ictRequest->refresh()->load('items.assetHandovers');
 
-        return back()->with('status', 'Penerimaan barang berhasil disimpan. Status: Barang Telah Diserahkan.');
+        if ($this->ictRequestGoodsReceiptIsComplete($ictRequest)) {
+            $ictRequest->update([
+                'status' => 'completed',
+                'goods_delivered_at' => $goodsReceiptDate,
+            ]);
+
+            return back()->with('status', 'Penerimaan barang selesai. Status: Barang Telah Diserahkan.');
+        }
+
+        return back()->with('status', 'Progres penerimaan barang disimpan. Lengkapi semua unit (sesuai qty per baris) agar status menjadi Barang Telah Diserahkan.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $itemData
+     */
+    protected function validateGoodsReceiptUnitRow(array $itemData): void
+    {
+        if (($itemData['handover_type'] ?? '') === 'asset') {
+            validator($itemData, [
+                'dept' => ['required', 'string', 'max:255'],
+                'model_specification' => ['required', 'string', 'max:500'],
+                'serial_number' => ['required', 'string', 'max:255'],
+                'recipient_name' => ['required', 'string', 'max:255'],
+                'deliverer_name' => ['required', 'string', 'max:255'],
+                'witness_name' => ['required', 'string', 'max:255'],
+            ], [], [
+                'dept' => 'Dept',
+                'model_specification' => 'Model / spesifikasi',
+                'serial_number' => 'Serial number',
+                'recipient_name' => 'Nama penerima',
+                'deliverer_name' => 'Nama HRGA',
+                'witness_name' => 'Staff ICT (saksi)',
+            ])->validate();
+        } else {
+            validator($itemData, [
+                'description' => ['required', 'string', 'min:3', 'max:1000'],
+            ])->validate();
+        }
+    }
+
+    protected function ictRequestGoodsReceiptIsComplete(IctRequest $ictRequest): bool
+    {
+        foreach ($ictRequest->items as $item) {
+            if (($item->audit_status ?? '') === 'takeout') {
+                continue;
+            }
+
+            $qty = max(0, (int) $item->quantity);
+            if ($qty === 0) {
+                continue;
+            }
+
+            $item->loadMissing('assetHandovers');
+
+            for ($u = 0; $u < $qty; $u++) {
+                $handover = $item->assetHandovers->firstWhere('unit_index', $u);
+                if (! $handover || ! $this->goodsReceiptUnitRecordIsComplete($handover)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    protected function goodsReceiptUnitRecordIsComplete(AssetHandover $h): bool
+    {
+        if ($h->handover_type === 'asset') {
+            return filled(trim((string) $h->serial_number))
+                && filled(trim((string) $h->dept))
+                && filled(trim((string) $h->model_specification))
+                && filled(trim((string) $h->recipient_name))
+                && filled(trim((string) $h->deliverer_name))
+                && filled(trim((string) $h->witness_name));
+        }
+
+        return strlen(trim((string) ($h->description ?? ''))) >= 3;
     }
 
     protected function generateHandoverReport(AssetHandover $handover, IctRequest $ictRequest, IctRequestItem $item): void

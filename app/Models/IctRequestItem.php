@@ -75,8 +75,19 @@ class IctRequestItem extends Model
         return $this->belongsTo(IctRequestPoDocument::class, 'po_document_id');
     }
 
+    /**
+     * Satu baris permintaan bisa punya beberapa serah terima (satu per qty / unit_index).
+     */
+    public function assetHandovers(): HasMany
+    {
+        return $this->hasMany(AssetHandover::class)->orderBy('unit_index');
+    }
+
+    /**
+     * @deprecated Gunakan assetHandovers(); disimpan untuk kompatibilitas baca satu record pertama.
+     */
     public function assetHandover(): HasOne
     {
-        return $this->hasOne(AssetHandover::class);
+        return $this->hasOne(AssetHandover::class)->orderBy('unit_index');
     }
 }

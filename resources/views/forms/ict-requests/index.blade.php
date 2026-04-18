@@ -115,12 +115,33 @@
                 'audit_status' => $item->audit_status,
                 'audit_reason' => $item->audit_reason,
                 'takeout_qty' => $item->takeout_qty,
-                'handover_type' => $item->assetHandover?->handover_type,
-                'handover_description' => $item->assetHandover?->description,
-                'handover_report_url' => $item->assetHandover ? route('forms.ict-requests.handover-report.pdf', ['ictRequest' => $request, 'assetHandover' => $item->assetHandover]) : null,
-                'surat_jalan_url' => $item->assetHandover?->surat_jalan_path ? \Illuminate\Support\Facades\Storage::url($item->assetHandover->surat_jalan_path) : null,
-                'surat_jalan_name' => $item->assetHandover?->surat_jalan_name,
-                'surat_jalan_is_image' => str_starts_with((string) $item->assetHandover?->surat_jalan_mime, 'image/'),
+                'goods_receipt_progress' => ((int) $item->quantity) > 0
+                    ? ($item->assetHandovers->count().'/'.((int) $item->quantity))
+                    : '0/0',
+                'handovers_by_unit' => $item->assetHandovers->keyBy(fn ($h) => (string) $h->unit_index)->map(fn ($h) => [
+                    'handover_type' => $h->handover_type,
+                    'description' => $h->description,
+                    'dept' => $h->dept,
+                    'model_specification' => $h->model_specification,
+                    'serial_number' => $h->serial_number,
+                    'asset_number' => $h->asset_number,
+                    'recipient_name' => $h->recipient_name,
+                    'recipient_position' => $h->recipient_position,
+                    'supervisor_name' => $h->supervisor_name,
+                    'supervisor_position' => $h->supervisor_position,
+                    'witness_name' => $h->witness_name,
+                    'witness_position' => $h->witness_position,
+                    'deliverer_name' => $h->deliverer_name,
+                    'deliverer_position' => $h->deliverer_position,
+                    'has_surat_jalan' => (bool) $h->surat_jalan_path,
+                    'has_serah_terima' => (bool) $h->serah_terima_path,
+                ])->all(),
+                'handover_type' => $item->assetHandovers->sortBy('unit_index')->first()?->handover_type,
+                'handover_description' => $item->assetHandovers->sortBy('unit_index')->first()?->description,
+                'handover_report_url' => ($h = $item->assetHandovers->sortBy('unit_index')->first()) ? route('forms.ict-requests.handover-report.pdf', ['ictRequest' => $request, 'assetHandover' => $h]) : null,
+                'surat_jalan_url' => ($h0 = $item->assetHandovers->sortBy('unit_index')->first()) && $h0->surat_jalan_path ? \Illuminate\Support\Facades\Storage::url($h0->surat_jalan_path) : null,
+                'surat_jalan_name' => $item->assetHandovers->sortBy('unit_index')->first()?->surat_jalan_name,
+                'surat_jalan_is_image' => str_starts_with((string) $item->assetHandovers->sortBy('unit_index')->first()?->surat_jalan_mime, 'image/'),
                 'quotations' => $item->quotations->map(fn ($quotation) => [
                     'vendor_name' => $quotation->vendor_name,
                     'attachment_name' => $quotation->attachment_name,
@@ -130,16 +151,16 @@
             ])->all(),
             'global_quotations' => $globalQuotations,
             'asset_handover_reports' => $request->items
-                ->map(fn ($item) => $item->assetHandover)
+                ->flatMap(fn ($item) => $item->assetHandovers)
                 ->filter(fn ($handover) => $handover && $handover->handover_type === 'asset')
                 ->map(fn ($handover) => [
-                    'item_name' => $handover->ictRequestItem?->item_name ?? 'Barang',
+                    'item_name' => ($handover->ictRequestItem?->item_name ?? 'Barang').' (unit '.(((int) $handover->unit_index) + 1).')',
                     'report_url' => route('forms.ict-requests.handover-report.pdf', ['ictRequest' => $request, 'assetHandover' => $handover]),
                 ])
                 ->values()
                 ->all(),
             'non_asset_handovers' => $request->items
-                ->map(fn ($item) => $item->assetHandover)
+                ->flatMap(fn ($item) => $item->assetHandovers)
                 ->filter(fn ($handover) => $handover && $handover->handover_type === 'non_asset')
                 ->map(fn ($handover) => [
                     'item_name' => $handover->ictRequestItem?->item_name ?? 'Barang',
@@ -560,8 +581,8 @@
                     this.$nextTick(() => {
                         const items = this.getGoodsReceiptItems();
                         this.handoverTypes = {};
-                        items.forEach((_, index) => {
-                            this.handoverTypes[index] = 'asset';
+                        items.forEach((row, index) => {
+                            this.handoverTypes[index] = row.handover_saved?.handover_type ?? 'asset';
                         });
                     });
                 },
@@ -575,7 +596,7 @@
                 },
                 submitGoodsReceiptForm() {
                     if (!this.goodsReceiptTarget) return;
-                    if (!confirm('Yakin ingin menyimpan penerimaan barang? Status akan berubah menjadi Barang Telah Diserahkan.')) {
+                    if (!confirm('Simpan penerimaan barang? Status menjadi Barang Telah Diserahkan hanya jika semua unit/qty sudah lengkap.')) {
                         return;
                     }
                     this.$refs.goodsReceiptForm.submit();
@@ -625,10 +646,12 @@
                         
                         // Buat entry terpisah untuk setiap unit yang diterima
                         for (let i = 0; i < receivedQty; i++) {
+                            const saved = item.handovers_by_unit?.[String(i)] ?? null;
                             result.push({
                                 ...item,
                                 unitIndex: i,
                                 receivedQty: receivedQty,
+                                handover_saved: saved,
                             });
                         }
                     });
@@ -1424,6 +1447,9 @@
                                     <div>
                                         <div class="text-xs uppercase tracking-wide text-ink-400">Jumlah</div>
                                         <div class="mt-2 font-semibold text-ink-900" x-text="`${item.quantity || 0} ${item.unit || ''}`"></div>
+                                        <template x-if="item.goods_receipt_progress && (detailMap[openDetailId]?.raw_status === 'progress_goods_arrived' || detailMap[openDetailId]?.raw_status === 'completed')">
+                                            <div class="mt-1 text-[11px] font-medium text-amber-800">Penerimaan: <span x-text="item.goods_receipt_progress"></span> unit</div>
+                                        </template>
                                     </div>
                                     <div>
                                         <div class="text-xs uppercase tracking-wide text-ink-400">Estimasi Harga</div>
@@ -2096,23 +2122,26 @@
                         <p class="mb-4 text-xs text-ink-500">Pilih apakah barang akan dimasukkan ke list asset atau tidak. Untuk asset otomatis akan dibuatkan Berita Acara Serah Terima.</p>
 
                         <div class="space-y-4">
-                            <template x-for="(item, index) in getGoodsReceiptItems()" :key="`goods-receipt-${item.id}-${item.unitIndex}`">
+                            <template x-for="(grItem, index) in getGoodsReceiptItems()" :key="`goods-receipt-${grItem.id}-${grItem.unitIndex}`">
                                 <div class="rounded-2xl border-2 border-brand-200 bg-brand-50/50 p-5">
                                     <div class="mb-4 flex items-center gap-3">
                                         <div class="flex-1">
-                                            <div class="font-semibold text-ink-900" x-text="item.item_name"></div>
+                                            <div class="font-semibold text-ink-900" x-text="grItem.item_name"></div>
                                             <div class="mt-1 text-xs text-ink-500">
-                                                <span x-text="item.item_category || '-'"></span>
+                                                <span x-text="grItem.item_category || '-'"></span>
                                                 <span class="mx-1">•</span>
-                                                <span x-text="`Unit ${item.unitIndex + 1} dari ${item.receivedQty}`"></span>
+                                                <span x-text="`Unit ${grItem.unitIndex + 1} dari ${grItem.receivedQty}`"></span>
                                                 <span class="mx-1">•</span>
-                                                <span x-text="item.brand_type || '-'"></span>
+                                                <span x-text="grItem.brand_type || '-'"></span>
+                                                <template x-if="grItem.handover_saved">
+                                                    <span class="ml-1 font-medium text-emerald-700">· tersimpan</span>
+                                                </template>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <input type="hidden" :name="`items[${index}][item_id]`" :value="item.id" />
-                                    <input type="hidden" :name="`items[${index}][unit_index]`" :value="item.unitIndex" />
+                                    <input type="hidden" :name="`items[${index}][item_id]`" :value="grItem.id" />
+                                    <input type="hidden" :name="`items[${index}][unit_index]`" :value="grItem.unitIndex" />
 
                                     <!-- Handover Type Selection -->
                                     <div class="mb-4">
@@ -2138,6 +2167,7 @@
                                                     :name="`items[${index}][description]`"
                                                     rows="3"
                                                     placeholder="Keterangan penerimaan barang"
+                                                    :value="grItem.handover_saved?.description || ''"
                                                     class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                 ></textarea>
                                             </div>
@@ -2174,6 +2204,7 @@
                                                     type="text"
                                                     :name="`items[${index}][dept]`"
                                                     placeholder="Contoh: IT Department"
+                                                    :value="grItem.handover_saved?.dept || ''"
                                                     class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                 />
                                             </div>
@@ -2183,6 +2214,7 @@
                                                     type="text"
                                                     :name="`items[${index}][model_specification]`"
                                                     placeholder="Model atau spesifikasi barang"
+                                                    :value="grItem.handover_saved?.model_specification || ''"
                                                     class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                 />
                                             </div>
@@ -2194,6 +2226,7 @@
                                                     type="text"
                                                     :name="`items[${index}][serial_number]`"
                                                     placeholder="Nomor seri barang"
+                                                    :value="grItem.handover_saved?.serial_number || ''"
                                                     class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                 />
                                             </div>
@@ -2203,6 +2236,7 @@
                                                     type="text"
                                                     :name="`items[${index}][asset_number]`"
                                                     placeholder="Nomor asset (jika ada)"
+                                                    :value="grItem.handover_saved?.asset_number || ''"
                                                     class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                 />
                                             </div>
@@ -2217,6 +2251,7 @@
                                                         type="text"
                                                         :name="`items[${index}][recipient_name]`"
                                                         placeholder="Nama penerima barang"
+                                                        :value="grItem.handover_saved?.recipient_name || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2226,6 +2261,7 @@
                                                         type="text"
                                                         :name="`items[${index}][recipient_position]`"
                                                         placeholder="Jabatan penerima"
+                                                        :value="grItem.handover_saved?.recipient_position || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2241,6 +2277,7 @@
                                                         type="text"
                                                         :name="`items[${index}][supervisor_name]`"
                                                         placeholder="Nama atasan penerima"
+                                                        :value="grItem.handover_saved?.supervisor_name || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2250,6 +2287,7 @@
                                                         type="text"
                                                         :name="`items[${index}][supervisor_position]`"
                                                         placeholder="Jabatan atasan"
+                                                        :value="grItem.handover_saved?.supervisor_position || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2266,7 +2304,7 @@
                                                         type="text"
                                                         :name="`items[${index}][deliverer_name]`"
                                                         :placeholder="detailMap[goodsReceiptTarget]?.previous_deliverer?.name || 'Nama penyerah dari HRGA'"
-                                                        :value="detailMap[goodsReceiptTarget]?.previous_deliverer?.name || ''"
+                                                        :value="grItem.handover_saved?.deliverer_name || detailMap[goodsReceiptTarget]?.previous_deliverer?.name || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2276,7 +2314,7 @@
                                                         type="text"
                                                         :name="`items[${index}][deliverer_position]`"
                                                         :placeholder="detailMap[goodsReceiptTarget]?.previous_deliverer?.position || 'Jabatan HRGA'"
-                                                        :value="detailMap[goodsReceiptTarget]?.previous_deliverer?.position || ''"
+                                                        :value="grItem.handover_saved?.deliverer_position || detailMap[goodsReceiptTarget]?.previous_deliverer?.position || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2293,7 +2331,7 @@
                                                         type="text"
                                                         :name="`items[${index}][witness_name]`"
                                                         :placeholder="detailMap[goodsReceiptTarget]?.staff_ict?.name || 'Nama staff ICT'"
-                                                        :value="detailMap[goodsReceiptTarget]?.staff_ict?.name || ''"
+                                                        :value="grItem.handover_saved?.witness_name || detailMap[goodsReceiptTarget]?.staff_ict?.name || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2303,7 +2341,7 @@
                                                         type="text"
                                                         :name="`items[${index}][witness_position]`"
                                                         :placeholder="detailMap[goodsReceiptTarget]?.staff_ict?.position || 'Jabatan staff ICT'"
-                                                        :value="detailMap[goodsReceiptTarget]?.staff_ict?.position || ''"
+                                                        :value="grItem.handover_saved?.witness_position || detailMap[goodsReceiptTarget]?.staff_ict?.position || ''"
                                                         class="mt-1 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500"
                                                     />
                                                 </div>
@@ -2362,7 +2400,7 @@
 
                     <div class="border-t border-ink-100 px-5 py-4">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <p class="text-xs text-ink-500">Setelah submit, status berubah menjadi Barang Sudah Diterima. Asset akan otomatis dibuatkan Berita Acara Serah Terima.</p>
+                            <p class="text-xs text-ink-500">Simpan bisa dilakukan per tahap. Status menjadi Barang Telah Diserahkan hanya jika setiap unit (sesuai qty) sudah terisi lengkap. Asset mendapat Berita Acara otomatis.</p>
                             <div class="flex justify-end gap-2">
                                 <x-button type="button" variant="secondary" x-on:click="closeGoodsReceiptModal()" class="px-4 py-2.5">Batal</x-button>
                                 <x-button type="submit" class="px-4 py-2.5">

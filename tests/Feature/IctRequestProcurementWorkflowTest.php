@@ -164,6 +164,7 @@ class IctRequestProcurementWorkflowTest extends TestCase
                 'items' => [
                     [
                         'item_id' => $item->id,
+                        'unit_index' => 0,
                         'handover_type' => 'asset',
                         'dept' => 'Finance',
                         'model_specification' => 'ThinkPad X1 Carbon Gen 12',

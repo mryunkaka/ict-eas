@@ -10,6 +10,7 @@ class AssetHandover extends Model
     protected $fillable = [
         'ict_request_id',
         'ict_request_item_id',
+        'unit_index',
         'asset_id',
         'handover_type',
         'received_at',
@@ -43,6 +44,7 @@ class AssetHandover extends Model
     protected function casts(): array
     {
         return [
+            'unit_index' => 'integer',
             'received_at' => 'datetime',
             'serah_terima_size' => 'integer',
             'surat_jalan_size' => 'integer',
