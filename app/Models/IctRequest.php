@@ -173,4 +173,20 @@ class IctRequest extends Model
     {
         return (string) ($this->department_name ?: $this->unit?->name ?: '-');
     }
+
+    /**
+     * Kolom DB `form_number` telah digabung ke `subject`. Akses ini memetakan ke subject
+     * agar kode/view lama tidak bergantung pada kolom yang sudah dihapus.
+     * Query builder tetap harus memilih `subject`, bukan `form_number` (bukan kolom lagi).
+     */
+    public function getFormNumberAttribute(): ?string
+    {
+        if (! array_key_exists('subject', $this->attributes)) {
+            return null;
+        }
+
+        $subject = $this->attributes['subject'];
+
+        return $subject === null ? null : (string) $subject;
+    }
 }

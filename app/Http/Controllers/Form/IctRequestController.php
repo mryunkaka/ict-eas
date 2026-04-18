@@ -898,6 +898,9 @@ class IctRequestController extends Controller
         ]);
     }
 
+    /**
+     * Daftar kolom eksplisit — jangan sertakan `form_number` (kolom sudah dihapus; nilai ada di `subject`).
+     */
     protected function buildIndexQuery(Request $request): Builder
     {
         $search = $request->string('search')->toString();
