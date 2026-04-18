@@ -94,7 +94,9 @@ class ReportController extends Controller
             ->when($validated['from'] ?? null, fn ($query, $from) => $query->whereDate('ict_requests.created_at', '>=', $from))
             ->when($validated['until'] ?? null, fn ($query, $until) => $query->whereDate('ict_requests.created_at', '<=', $until));
 
-        $recordsTotal = (clone $baseQuery)->count('ict_request_items.id');
+        $recordsTotal = (int) ((clone $baseQuery)
+            ->selectRaw('COALESCE(SUM(CASE WHEN ict_request_items.quantity > 0 THEN ict_request_items.quantity ELSE 1 END), 0) as total_rows')
+            ->value('total_rows') ?? 0);
 
         if ($search !== '') {
             $like = '%'.$search.'%';
@@ -119,7 +121,9 @@ class ReportController extends Controller
             });
         }
 
-        $recordsFiltered = (clone $baseQuery)->count('ict_request_items.id');
+        $recordsFiltered = (int) ((clone $baseQuery)
+            ->selectRaw('COALESCE(SUM(CASE WHEN ict_request_items.quantity > 0 THEN ict_request_items.quantity ELSE 1 END), 0) as total_rows')
+            ->value('total_rows') ?? 0);
 
         $columns = $canBulkDeleteMonitoringPp
             ? [
@@ -179,7 +183,7 @@ class ReportController extends Controller
         $orderDirection = strtolower((string) data_get($validated, 'order.0.dir', 'desc')) === 'asc' ? 'asc' : 'desc';
         $orderColumn = $columns[$orderColumnIndex] ?? 'ict_request_items.id';
 
-        $rows = $baseQuery
+        $flatRows = $baseQuery
             ->select([
                 'ict_request_items.id',
                 'ict_request_items.item_category',
@@ -234,9 +238,23 @@ class ReportController extends Controller
             ])
             ->orderBy($orderColumn, $orderDirection)
             ->orderByDesc('ict_request_items.id')
-            ->offset($start)
-            ->limit($length)
             ->get()
+            ->values()
+            ->flatMap(function ($row) {
+                $qty = max((int) ($row->quantity ?? 1), 1);
+
+                return collect(range(1, $qty))->map(function ($unitNo) use ($row) {
+                    $clone = clone $row;
+                    $clone->quantity = 1;
+                    $clone->unit_no = $unitNo;
+
+                    return $clone;
+                });
+            })
+            ->values();
+
+        $rows = $flatRows
+            ->slice($start, $length)
             ->values()
             ->map(function ($row, $index) use ($start, $canManageMonitoringPpUploads, $canBulkDeleteMonitoringPp) {
                 $photoUrl = $row->photo_path ? Storage::disk('public')->url($row->photo_path) : null;
@@ -295,9 +313,9 @@ class ReportController extends Controller
                     $start + $index + 1,
                     e($row->unit_name ?: '-'),
                     e($row->item_category ?: '-'),
-                    e($row->item_name ?: '-'),
+                    e(($row->item_name ?: '-').($row->unit_no ? " (Unit {$row->unit_no})" : '')),
                     e($row->brand_type ?: '-'),
-                    number_format((int) ($row->quantity ?? 0)),
+                    number_format((int) ($row->quantity ?? 1)),
                     e($this->formatCurrency($row->estimated_price)),
                     e($this->formatCurrency(((float) ($row->estimated_price ?? 0)) * ((int) ($row->quantity ?? 0)))),
                     e($row->notes ?: '-'),

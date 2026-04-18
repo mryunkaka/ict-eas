@@ -1,50 +1,55 @@
 <x-app-layout>
-    @push('styles')
-        <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
-    @endpush
-
-    <div class="space-y-6">
-        <x-card>
-            <form id="monitoring-pp-filters" class="grid gap-4 md:grid-cols-4 xl:grid-cols-7">
-                @if ($canFilterAllUnits)
-                    <x-select
-                        name="unit_id"
-                        label="Unit"
-                        :value="$selectedUnitId"
-                        :options="$units"
-                        placeholder="Semua Unit"
-                    />
-                @endif
-                <x-input name="from" type="date" label="Tanggal Form Dari" :value="request('from')" />
-                <x-input name="until" type="date" label="Tanggal Form Sampai" :value="request('until')" />
-                <div class="flex flex-wrap items-end gap-3 md:col-span-2 xl:col-span-4">
-                    <x-button type="button" id="apply-monitoring-pp-filter">Filter</x-button>
-                    <x-button :href="route('reports.monitoring-pp')" variant="secondary">Reset</x-button>
-                    <x-button type="button" id="export-monitoring-pp-excel" variant="secondary">Export Excel</x-button>
-                    <x-button :href="route('reports.monitoring-pp.example-import')" variant="secondary">Download Example Import</x-button>
-                    @if ($canBulkDeleteMonitoringPp)
-                        <x-button type="button" id="bulk-delete-monitoring-pp" variant="danger" disabled>Bulk Delete</x-button>
+    <div class="ui-page-workspace">
+        <x-card class="ui-page-workspace-card" padding="none">
+            <div class="ui-page-toolbar">
+                <form id="monitoring-pp-filters" class="ui-page-toolbar-form">
+                    @if ($canFilterAllUnits)
+                        <x-select
+                            name="unit_id"
+                            label="Unit"
+                            :value="$selectedUnitId"
+                            :options="$units"
+                            placeholder="Semua Unit"
+                            size="compact"
+                        />
                     @endif
-                    <x-button :href="route('reports.index')" variant="secondary">Kembali ke Report</x-button>
-                </div>
-            </form>
-        </x-card>
-
-        @if ($canImportMonitoringPp)
-            <x-card title="Import Monitoring PP" subtitle="Upload file Excel untuk sinkronisasi data procurement">
-                <form method="POST" action="{{ route('reports.monitoring-pp.import-excel') }}" enctype="multipart/form-data" class="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-                    @csrf
-                    <x-input name="import_file" type="file" label="Import Excel Monitoring PP" accept=".xlsx,.xls,.csv" />
-                    <div class="flex items-end">
-                        <x-button type="submit">Import Excel</x-button>
+                    <label class="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-600">
+                        <span>Dari</span>
+                        <input type="date" name="from" value="{{ request('from') }}" class="h-7 w-[118px] rounded-lg border border-ink-200 bg-white px-2 text-[11px] text-ink-900 outline-none transition focus:border-brand-500" />
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-600">
+                        <span>Sampai</span>
+                        <input type="date" name="until" value="{{ request('until') }}" class="h-7 w-[118px] rounded-lg border border-ink-200 bg-white px-2 text-[11px] text-ink-900 outline-none transition focus:border-brand-500" />
+                    </label>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <x-button type="button" id="apply-monitoring-pp-filter" size="compact" class="!px-2.5 !py-1 !text-[11px]">Terapkan</x-button>
+                        <x-button :href="route('reports.monitoring-pp')" variant="secondary" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                            <x-heroicon-o-arrow-path class="mr-1.5 h-3.5 w-3.5" />
+                            Reset
+                        </x-button>
+                        <x-button type="button" id="monitoring-pp-import-export" variant="secondary" size="compact" class="!px-2.5 !py-1 !text-[11px]">
+                            <x-heroicon-o-arrow-up-tray class="mr-1.5 h-3.5 w-3.5" />
+                            Import/Export
+                        </x-button>
                     </div>
                 </form>
-            </x-card>
-        @endif
+            </div>
 
-        <x-card title="Data Monitoring PP" subtitle="Tampilan monitoring procurement mengikuti pola visual modul Permintaan ICT">
-            <div class="ui-data-shell">
-                <table id="monitoring-pp-table" class="display w-full text-sm">
+            @if ($canBulkDeleteMonitoringPp)
+                <div id="monitoring-pp-selection-bar" class="ui-page-section-bar hidden">
+                    <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-700">
+                        <span id="monitoring-pp-selection-count" class="text-xs text-ink-500">0 data dipilih</span>
+                        <button type="button" id="bulk-delete-monitoring-pp" class="ui-page-danger-button !px-2.5 !py-1 !text-[11px]">
+                            <x-heroicon-o-trash class="mr-1.5 h-3.5 w-3.5" />
+                            Delete selected
+                        </button>
+                    </div>
+                </div>
+            @endif
+
+            <div class="ui-page-table-content">
+                <div class="ui-datatable-shell">
+                    <table id="monitoring-pp-table" class="ui-table-compact">
                     <thead>
                         <tr>
                             @if ($canBulkDeleteMonitoringPp)
@@ -89,10 +94,33 @@
                         </tr>
                     </thead>
                     <tbody></tbody>
-                </table>
+                    </table>
+                </div>
             </div>
         </x-card>
     </div>
+
+    @if ($canImportMonitoringPp)
+        <div id="monitoring-pp-import-export-modal" class="fixed inset-0 z-50 hidden items-center justify-center px-4 py-6">
+            <div class="ui-modal-backdrop absolute inset-0"></div>
+            <div class="ui-modal-panel relative z-10 w-full max-w-xl">
+                <div class="flex items-start justify-between gap-4">
+                    <h2 class="text-lg font-semibold text-ink-900">Import / Export Monitoring PP</h2>
+                    <button type="button" id="monitoring-pp-import-export-close" class="rounded-full border border-ink-200 px-3 py-1 text-sm font-medium text-ink-600 hover:bg-ink-50">Tutup</button>
+                </div>
+
+                <form method="POST" action="{{ route('reports.monitoring-pp.import-excel') }}" enctype="multipart/form-data" class="mt-5 space-y-3">
+                    @csrf
+                    <x-input name="import_file" type="file" label="Import Excel" accept=".xlsx,.xls,.csv" size="compact" />
+                    <div class="flex flex-wrap justify-end gap-2 pt-1">
+                        <x-button type="button" id="export-monitoring-pp-excel" variant="secondary" size="compact">Export Excel</x-button>
+                        <x-button :href="route('reports.monitoring-pp.example-import')" variant="secondary" size="compact">Download Example Import</x-button>
+                        <x-button type="submit" size="compact">Import Excel</x-button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 
     @if ($canBulkDeleteMonitoringPp)
         <form id="monitoring-pp-bulk-delete-form" method="POST" action="{{ route('reports.monitoring-pp.bulk-delete') }}" class="hidden">
@@ -170,12 +198,29 @@
         <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
         <script>
             document.addEventListener('DOMContentLoaded', () => {
+                const pageRoot = document.querySelector('.ui-page-workspace');
+                const adminScroll = pageRoot?.closest('.ui-admin-scroll');
+                const adminContent = pageRoot?.closest('.ui-admin-content');
+                const adminContentInner = pageRoot?.closest('.ui-admin-content-inner');
+                [adminScroll, adminContent, adminContentInner].forEach((element) => {
+                    element?.classList.add('is-page-scroll-locked');
+                });
+
                 const filterForm = document.getElementById('monitoring-pp-filters');
                 const applyButton = document.getElementById('apply-monitoring-pp-filter');
                 const exportButton = document.getElementById('export-monitoring-pp-excel');
+                const importExportTrigger = document.getElementById('monitoring-pp-import-export');
+                const importExportModal = document.getElementById('monitoring-pp-import-export-modal');
+                const importExportClose = document.getElementById('monitoring-pp-import-export-close');
+                const tableElement = document.getElementById('monitoring-pp-table');
                 const hasBulkDelete = @js($canBulkDeleteMonitoringPp);
                 const canManageUploads = @js($canManageMonitoringPpUploads);
+                const canImportMonitoringPp = @js($canImportMonitoringPp);
                 const selectedRequestIds = new Set();
+                const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 900;
+                const tableTop = tableElement?.getBoundingClientRect().top || 0;
+                const reservedBottomSpace = 190;
+                const tableScrollHeight = Math.max(220, viewportHeight - tableTop - reservedBottomSpace);
 
                 const columnDefs = [
                     { targets: hasBulkDelete ? [1] : [0], width: '60px', searchable: false, orderable: false },
@@ -205,9 +250,12 @@
                     serverSide: true,
                     deferRender: true,
                     searchDelay: 400,
-                    pageLength: 25,
-                    lengthMenu: [25, 50, 100],
+                    pageLength: 10,
+                    lengthChange: false,
                     scrollX: true,
+                    scrollY: `${tableScrollHeight}px`,
+                    scrollCollapse: true,
+                    info: false,
                     autoWidth: false,
                     ajax: {
                         url: @js(route('reports.monitoring-pp.data')),
@@ -222,9 +270,10 @@
                     columnDefs,
                     language: {
                         processing: 'Memuat data...',
-                        search: 'Cari:',
+                        search: '',
+                        searchPlaceholder: 'Cari data...',
                         lengthMenu: 'Tampilkan _MENU_ baris',
-                        info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+                        info: '',
                         infoEmpty: 'Tidak ada data',
                         zeroRecords: 'Data tidak ditemukan',
                         emptyTable: 'Tidak ada data monitoring PP',
@@ -242,12 +291,18 @@
                         return;
                     }
 
-                    const bulkDeleteButton = document.getElementById('bulk-delete-monitoring-pp');
+                    const selectionBar = document.getElementById('monitoring-pp-selection-bar');
+                    const selectionCount = document.getElementById('monitoring-pp-selection-count');
                     const checkAll = document.getElementById('monitoring-pp-check-all');
                     const checkboxes = document.querySelectorAll('.monitoring-pp-request-checkbox');
                     const checkedOnPage = Array.from(checkboxes).filter((checkbox) => checkbox.checked);
 
-                    bulkDeleteButton.disabled = selectedRequestIds.size === 0;
+                    if (selectionBar) {
+                        selectionBar.classList.toggle('hidden', selectedRequestIds.size === 0);
+                    }
+                    if (selectionCount) {
+                        selectionCount.textContent = `${selectedRequestIds.size} data dipilih`;
+                    }
                     checkAll.checked = checkboxes.length > 0 && checkedOnPage.length === checkboxes.length;
                     checkAll.indeterminate = checkedOnPage.length > 0 && checkedOnPage.length < checkboxes.length;
                 };
@@ -270,7 +325,24 @@
                     table.ajax.reload();
                 });
 
-                exportButton.addEventListener('click', () => {
+                if (canImportMonitoringPp && importExportTrigger && importExportModal) {
+                    const closeImportExportModal = () => {
+                        importExportModal.classList.add('hidden');
+                        importExportModal.classList.remove('flex');
+                    };
+                    importExportTrigger.addEventListener('click', () => {
+                        importExportModal.classList.remove('hidden');
+                        importExportModal.classList.add('flex');
+                    });
+                    importExportClose?.addEventListener('click', closeImportExportModal);
+                    importExportModal.addEventListener('click', (event) => {
+                        if (event.target === importExportModal || event.target.classList.contains('ui-modal-backdrop')) {
+                            closeImportExportModal();
+                        }
+                    });
+                }
+
+                exportButton?.addEventListener('click', () => {
                     const formData = new FormData(filterForm);
                     const params = new URLSearchParams();
 
