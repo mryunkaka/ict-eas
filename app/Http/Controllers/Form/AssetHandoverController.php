@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Form;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\AssetHandover;
-use App\Support\PublicFileUpload;
 use App\Models\IctRequest;
+use App\Support\PublicFileUpload;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -38,7 +38,6 @@ class AssetHandoverController extends Controller
                 $q->where(function (Builder $inner) use ($search): void {
                     $inner
                         ->where('ict_requests.subject', 'like', "%{$search}%")
-                        ->orWhere('ict_requests.form_number', 'like', "%{$search}%")
                         ->orWhere('asset_handovers.asset_number', 'like', "%{$search}%")
                         ->orWhere('asset_handovers.serial_number', 'like', "%{$search}%")
                         ->orWhere('asset_handovers.recipient_name', 'like', "%{$search}%");
@@ -61,7 +60,7 @@ class AssetHandoverController extends Controller
         }
 
         $ictRequests = IctRequest::query()
-            ->select(['id', 'unit_id', 'form_number', 'subject', 'status', 'created_at'])
+            ->select(['id', 'unit_id', 'subject', 'status', 'created_at'])
             ->with(['unit'])
             ->when(! $request->user()->isSuperAdmin(), fn (Builder $q) => $q->where('unit_id', $request->user()->unit_id))
             ->orderByDesc('id')
@@ -223,14 +222,14 @@ class AssetHandoverController extends Controller
 
     protected function generateHandoverReport(AssetHandover $handover, IctRequest $ictRequest, $item): void
     {
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('forms.ict-requests.handover-report', [
+        $pdf = Pdf::loadView('forms.ict-requests.handover-report', [
             'handover' => $handover,
             'ictRequest' => $ictRequest,
             'item' => $item,
         ])->setPaper('a4', 'portrait');
 
-        $fileName = 'berita-acara-' . $handover->id . '-' . Str::slug(substr((string) $item->item_name, 0, 30)) . '.pdf';
-        $filePath = 'ict-handover-reports/' . $fileName;
+        $fileName = 'berita-acara-'.$handover->id.'-'.Str::slug(substr((string) $item->item_name, 0, 30)).'.pdf';
+        $filePath = 'ict-handover-reports/'.$fileName;
 
         Storage::disk('public')->put($filePath, $pdf->output());
 

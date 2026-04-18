@@ -3,15 +3,17 @@
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/init-storage', function() {
+Route::get('/init-storage', function () {
     Artisan::call('storage:link');
+
     return 'Storage link created successfully!';
 });
 
-Route::get('/clear-cache', function() {
+Route::get('/clear-cache', function () {
     Artisan::call('view:clear');
     Artisan::call('cache:clear');
     Artisan::call('config:clear');
+
     return 'Cache cleared successfully! View cache, app cache, dan config cache sudah dibersihkan.';
 });
 use App\Http\Controllers\ApprovalController;
@@ -27,8 +29,8 @@ use App\Http\Controllers\Form\RepairRequestController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TempUploadController;
-use App\Http\Controllers\Tools\PingServerController;
 use App\Http\Controllers\Tools\DbConnectionController;
+use App\Http\Controllers\Tools\PingServerController;
 use App\Http\Controllers\Tools\SqlSyncController;
 use App\Http\Controllers\Tools\UserManagementController;
 
@@ -42,31 +44,31 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-	    Route::prefix('forms')->name('forms.')->group(function () {
-	        Route::get('ict-requests/next-identifier', [IctRequestController::class, 'nextIdentifier'])->name('ict-requests.next-identifier');
-	        Route::get('ict-requests/export', [IctRequestController::class, 'export'])->name('ict-requests.export');
-	        Route::get('ict-requests/{ictRequest}/pdf', [IctRequestController::class, 'pdf'])->name('ict-requests.pdf');
-	        Route::post('ict-requests/{ictRequest}/print', [IctRequestController::class, 'print'])->name('ict-requests.print');
-	        Route::post('ict-requests/{ictRequest}/ppnk', [IctRequestController::class, 'storePpnk'])->name('ict-requests.ppnk.store');
-	        Route::post('ict-requests/{ictRequest}/verify-audit', [IctRequestController::class, 'verifyAuditPpnk'])->name('ict-requests.verify-audit');
-	        Route::post('ict-requests/{ictRequest}/ppm', [IctRequestController::class, 'storePpm'])->name('ict-requests.ppm.store');
-	        Route::post('ict-requests/{ictRequest}/po', [IctRequestController::class, 'storePo'])->name('ict-requests.po.store');
-	        Route::post('ict-requests/{ictRequest}/confirm-goods-arrival', [IctRequestController::class, 'confirmGoodsArrival'])->name('ict-requests.confirm-goods-arrival');
-	        Route::post('ict-requests/{ictRequest}/goods-receipt', [IctRequestController::class, 'storeGoodsReceipt'])->name('ict-requests.goods-receipt.store');
-	        Route::get('ict-requests/{ictRequest}/handover-report/{assetHandover}/pdf', [IctRequestController::class, 'handoverReportPdf'])->name('ict-requests.handover-report.pdf');
-	        Route::get('asset-handovers/{assetHandover}/pdf', [AssetHandoverController::class, 'pdf'])->name('asset-handovers.pdf');
-	        Route::delete('ict-requests/bulk-destroy', [IctRequestController::class, 'bulkDestroy'])->name('ict-requests.bulk-destroy');
-	        Route::delete('ict-requests/{ictRequest}/permanent', [IctRequestController::class, 'permanentDestroy'])->name('ict-requests.permanent-destroy');
-	        Route::resource('ict-requests', IctRequestController::class)->only(['index', 'create', 'store', 'edit', 'update']);
-	        Route::resource('email-requests', EmailRequestController::class)->only(['index', 'create', 'store']);
-	        Route::resource('repairs', RepairRequestController::class)->only(['index', 'create', 'store']);
-	        Route::resource('incidents', IncidentReportController::class)->only(['index', 'create', 'store', 'show']);
-	        Route::post('incidents/{incident}/maintenance', [IncidentReportController::class, 'storeMaintenance'])->name('incidents.maintenance.store');
-	        Route::resource('assets', AssetController::class)->only(['index', 'show']);
-	        Route::resource('asset-handovers', AssetHandoverController::class)->only(['index', 'create', 'store']);
-	        Route::post('assets/{asset}/lifecycle', [AssetController::class, 'updateLifecycle'])->name('assets.lifecycle.update');
-	        Route::resource('projects', ProjectRequestController::class)->only(['index', 'create', 'store']);
-	    });
+    Route::prefix('forms')->name('forms.')->group(function () {
+        Route::get('ict-requests/next-identifier', [IctRequestController::class, 'nextIdentifier'])->name('ict-requests.next-identifier');
+        Route::get('ict-requests/export', [IctRequestController::class, 'export'])->name('ict-requests.export');
+        Route::get('ict-requests/{ictRequest}/pdf', [IctRequestController::class, 'pdf'])->name('ict-requests.pdf');
+        Route::post('ict-requests/{ictRequest}/print', [IctRequestController::class, 'print'])->name('ict-requests.print');
+        Route::post('ict-requests/{ictRequest}/ppnk', [IctRequestController::class, 'storePpnk'])->name('ict-requests.ppnk.store');
+        Route::post('ict-requests/{ictRequest}/verify-audit', [IctRequestController::class, 'verifyAuditPpnk'])->name('ict-requests.verify-audit');
+        Route::post('ict-requests/{ictRequest}/ppm', [IctRequestController::class, 'storePpm'])->name('ict-requests.ppm.store');
+        Route::post('ict-requests/{ictRequest}/po', [IctRequestController::class, 'storePo'])->name('ict-requests.po.store');
+        Route::post('ict-requests/{ictRequest}/confirm-goods-arrival', [IctRequestController::class, 'confirmGoodsArrival'])->name('ict-requests.confirm-goods-arrival');
+        Route::post('ict-requests/{ictRequest}/goods-receipt', [IctRequestController::class, 'storeGoodsReceipt'])->name('ict-requests.goods-receipt.store');
+        Route::get('ict-requests/{ictRequest}/handover-report/{assetHandover}/pdf', [IctRequestController::class, 'handoverReportPdf'])->name('ict-requests.handover-report.pdf');
+        Route::get('asset-handovers/{assetHandover}/pdf', [AssetHandoverController::class, 'pdf'])->name('asset-handovers.pdf');
+        Route::delete('ict-requests/bulk-destroy', [IctRequestController::class, 'bulkDestroy'])->name('ict-requests.bulk-destroy');
+        Route::delete('ict-requests/{ictRequest}/permanent', [IctRequestController::class, 'permanentDestroy'])->name('ict-requests.permanent-destroy');
+        Route::resource('ict-requests', IctRequestController::class)->only(['index', 'create', 'store', 'edit', 'update']);
+        Route::resource('email-requests', EmailRequestController::class)->only(['index', 'create', 'store']);
+        Route::resource('repairs', RepairRequestController::class)->only(['index', 'create', 'store']);
+        Route::resource('incidents', IncidentReportController::class)->only(['index', 'create', 'store', 'show']);
+        Route::post('incidents/{incident}/maintenance', [IncidentReportController::class, 'storeMaintenance'])->name('incidents.maintenance.store');
+        Route::resource('assets', AssetController::class)->only(['index', 'show']);
+        Route::resource('asset-handovers', AssetHandoverController::class)->only(['index', 'create', 'store']);
+        Route::post('assets/{asset}/lifecycle', [AssetController::class, 'updateLifecycle'])->name('assets.lifecycle.update');
+        Route::resource('projects', ProjectRequestController::class)->only(['index', 'create', 'store']);
+    });
 
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
     Route::post('/uploads/temp', [TempUploadController::class, 'store'])->name('uploads.temp.store');
@@ -98,6 +100,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/tools/ping-server', [PingServerController::class, 'check'])->name('tools.ping.check');
     Route::get('/tools/db-connection', [DbConnectionController::class, 'index'])->name('tools.db-connection.index');
     Route::get('/tools/sql-sync', [SqlSyncController::class, 'index'])->name('tools.sql-sync.index');
+    Route::post('/tools/sql-sync/run', [SqlSyncController::class, 'runSql'])->name('tools.sql-sync.run');
+    Route::post('/tools/sql-sync/clean-orphans', [SqlSyncController::class, 'cleanOrphans'])->name('tools.sql-sync.clean-orphans');
     Route::get('/tools/sql-sync/download', [SqlSyncController::class, 'download'])->name('tools.sql-sync.download');
 });
 

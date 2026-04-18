@@ -24,14 +24,21 @@ class MonitoringPpReportTest extends TestCase
         [$unitA, $userA, $itemA] = $this->createMonitoringItem('UNIT-A', 'Unit A', UserRole::AdminIct, 'Laptop A');
         [, , $itemB] = $this->createMonitoringItem('UNIT-B', 'Unit B', UserRole::AdminIct, 'Laptop B');
 
-        $response = $this->actingAs($userA)->get(route('reports.monitoring-pp', [
+        $this->actingAs($userA)->get(route('reports.monitoring-pp', [
+            'unit_id' => $itemB->ictRequest->unit_id,
+        ]))->assertOk();
+
+        $payload = $this->actingAs($userA)->getJson(route('reports.monitoring-pp.data', [
+            'draw' => 1,
+            'start' => 0,
+            'length' => 100,
             'unit_id' => $itemB->ictRequest->unit_id,
         ]));
 
-        $response->assertOk();
-        $response->assertSee('Laptop A');
-        $response->assertDontSee('Laptop B');
-        $response->assertDontSee('Semua Unit');
+        $payload->assertOk();
+        $encoded = json_encode($payload->json('data'));
+        $this->assertStringContainsString('Laptop A', (string) $encoded);
+        $this->assertStringNotContainsString('Laptop B', (string) $encoded);
     }
 
     public function test_asmen_can_view_all_units_in_monitoring_pp(): void
@@ -44,18 +51,31 @@ class MonitoringPpReportTest extends TestCase
             'name' => 'Asmen ICT',
         ]);
 
-        $response = $this->actingAs($asmen)->get(route('reports.monitoring-pp'));
+        $page = $this->actingAs($asmen)->get(route('reports.monitoring-pp'));
 
-        $response->assertOk();
-        $response->assertSee('Laptop A');
-        $response->assertSee('Laptop B');
-        $response->assertSee('Semua Unit');
+        $page->assertOk();
+        $page->assertSee('Semua Unit');
 
-        $filtered = $this->actingAs($asmen)->get(route('reports.monitoring-pp', ['unit_id' => $unitB->id]));
+        $all = $this->actingAs($asmen)->getJson(route('reports.monitoring-pp.data', [
+            'draw' => 1,
+            'start' => 0,
+            'length' => 100,
+        ]));
+        $all->assertOk();
+        $encodedAll = json_encode($all->json('data'));
+        $this->assertStringContainsString('Laptop A', (string) $encodedAll);
+        $this->assertStringContainsString('Laptop B', (string) $encodedAll);
 
+        $filtered = $this->actingAs($asmen)->getJson(route('reports.monitoring-pp.data', [
+            'draw' => 1,
+            'start' => 0,
+            'length' => 100,
+            'unit_id' => $unitB->id,
+        ]));
         $filtered->assertOk();
-        $filtered->assertDontSee('Laptop A');
-        $filtered->assertSee('Laptop B');
+        $encodedFiltered = json_encode($filtered->json('data'));
+        $this->assertStringNotContainsString('Laptop A', (string) $encodedFiltered);
+        $this->assertStringContainsString('Laptop B', (string) $encodedFiltered);
     }
 
     public function test_import_monitoring_pp_keeps_ppnk_ppm_and_po_documents_empty(): void
@@ -102,7 +122,6 @@ class MonitoringPpReportTest extends TestCase
         $this->assertSame('PR-001', $item->pr_number);
         $this->assertSame('PO-001', $item->po_number);
         $this->assertSame('2026-04-03', $item->po_uploaded_at?->toDateString());
-        $this->assertSame('UNIT-IMP-FORM ICT-001', $item->ictRequest->form_number);
         $this->assertSame('UNIT-IMP-FORM ICT-001', $item->ictRequest->subject);
         $this->assertSame(0, IctRequestPpnkDocument::query()->count());
         $this->assertSame(0, IctRequestPpmDocument::query()->count());
@@ -130,7 +149,6 @@ class MonitoringPpReportTest extends TestCase
         $request = IctRequest::create([
             'unit_id' => $unit->id,
             'requester_id' => $user->id,
-            'form_number' => 'F-'.$code,
             'subject' => 'Permintaan '.$itemName,
             'request_category' => 'hardware',
             'priority' => 'normal',

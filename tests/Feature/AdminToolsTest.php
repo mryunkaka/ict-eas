@@ -34,6 +34,26 @@ class AdminToolsTest extends TestCase
         $this->assertDatabaseHas('users', ['email' => 'new.user@example.com']);
     }
 
+    public function test_super_admin_can_open_sql_sync_tool(): void
+    {
+        $unit = Unit::create(['code' => 'UNIT-SQL', 'name' => 'Unit SQL', 'type' => 'unit', 'is_active' => true]);
+        $superAdmin = User::factory()->create(['unit_id' => $unit->id, 'role' => UserRole::SuperAdmin]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('tools.sql-sync.index'))
+            ->assertOk();
+    }
+
+    public function test_non_super_admin_cannot_open_sql_sync_tool(): void
+    {
+        $unit = Unit::create(['code' => 'UNIT-SQL2', 'name' => 'Unit SQL2', 'type' => 'unit', 'is_active' => true]);
+        $admin = User::factory()->create(['unit_id' => $unit->id, 'role' => UserRole::AdminIct]);
+
+        $this->actingAs($admin)
+            ->get(route('tools.sql-sync.index'))
+            ->assertForbidden();
+    }
+
     public function test_ict_admin_can_update_asset_lifecycle(): void
     {
         $unit = Unit::create(['code' => 'UNIT-11', 'name' => 'Unit 11', 'type' => 'unit', 'is_active' => true]);

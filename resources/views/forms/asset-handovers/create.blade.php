@@ -23,7 +23,7 @@
                             <option value="">-- pilih --</option>
                             @foreach ($ictRequests as $req)
                                 <option value="{{ $req->id }}" @selected(optional($selectedRequest)->id === $req->id)>
-                                    {{ $req->form_number ?? ('#'.$req->id) }} - {{ $req->subject }} ({{ $req->unit?->name ?? '-' }})
+                                    {{ $req->subject ?: ('#'.$req->id) }} ({{ $req->unit?->name ?? '-' }})
                                 </option>
                             @endforeach
                         </select>

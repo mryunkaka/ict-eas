@@ -6,22 +6,22 @@ use App\Enums\UserRole;
 use App\Exports\IctRequestExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreIctRequestRequest;
+use App\Models\Asset;
+use App\Models\AssetHandover;
 use App\Models\IctRequest;
 use App\Models\IctRequestItem;
 use App\Models\IctRequestPoDocument;
 use App\Models\IctRequestPpmDocument;
 use App\Models\IctRequestPpnkDocument;
-use App\Models\IctRequestQuotation;
-use App\Models\Asset;
-use App\Models\AssetHandover;
+use App\Models\User;
 use App\Support\PublicFileUpload;
 use App\Support\UnitScope;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -69,9 +69,10 @@ class IctRequestController extends Controller
 
     public function create(): View
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = request()->user();
         abort_unless($user->canCreateIctRequest(), 403);
+
         return view('forms.ict-requests.create', $this->buildFormViewData());
     }
 
@@ -103,7 +104,6 @@ class IctRequestController extends Controller
             'requester_id' => $user->id,
             'requester_name' => $request->input('requester_name'),
             'department_name' => $request->input('department_name'),
-            'form_number' => $formIdentifier,
             'subject' => trim((string) $request->input('subject')) !== '' ? trim((string) $request->input('subject')) : $formIdentifier,
             'request_category' => (string) $request->input('request_category'),
             'priority' => (string) $request->input('priority'),
@@ -151,7 +151,7 @@ class IctRequestController extends Controller
         $subjectInput = trim((string) $request->input('subject'));
         $neededAt = Carbon::parse((string) ($request->input('needed_at') ?: optional($ictRequest->needed_at)->toDateString() ?: now()->toDateString()));
         $yearSuffix = $neededAt->format('y');
-        $fallbackIdentifier = $ictRequest->form_number ?: $this->buildFormIdentifier(
+        $fallbackIdentifier = $ictRequest->subject ?: $this->buildFormIdentifier(
             (string) ($ictRequest->unit?->code ?? 'UNIT'),
             $this->resolveNextFormSequence((int) $ictRequest->unit_id, $neededAt),
             $yearSuffix
@@ -161,7 +161,6 @@ class IctRequestController extends Controller
             'requester_name' => $request->input('requester_name'),
             'department_name' => $request->input('department_name'),
             'subject' => $subjectInput !== '' ? $subjectInput : ($ictRequest->subject ?: $fallbackIdentifier),
-            'form_number' => $ictRequest->form_number ?: $fallbackIdentifier,
             'request_category' => (string) $request->input('request_category'),
             'priority' => (string) $request->input('priority'),
             'needed_at' => $request->input('needed_at'),
@@ -539,14 +538,14 @@ class IctRequestController extends Controller
             // Handle partial takeout logic
             if ($itemData['audit_status'] === 'takeout') {
                 $takeoutQty = (int) ($itemData['takeout_qty'] ?? $item->quantity);
-                
+
                 // Validate takeout_qty doesn't exceed item quantity
                 if ($takeoutQty > $item->quantity) {
                     return back()
                         ->withErrors(['items' => "Jumlah takeout untuk {$item->item_name} tidak boleh lebih dari jumlah barang ({$item->quantity})"])
                         ->withInput();
                 }
-                
+
                 // If takeout_qty is provided and less than full quantity
                 if ($takeoutQty > 0 && $takeoutQty < $item->quantity) {
                     // Partial takeout: reduce quantity, keep item active
@@ -854,21 +853,14 @@ class IctRequestController extends Controller
                         $q->whereNull('needed_at')->whereYear('created_at', $year);
                     });
             })
-            ->get(['form_number', 'subject']);
+            ->get(['subject']);
 
         $max = 0;
 
         foreach ($rows as $row) {
-            $candidates = [
-                (string) ($row->form_number ?? ''),
-                (string) ($row->subject ?? ''),
-            ];
-
-            foreach ($candidates as $value) {
-                $sequence = $this->extractFormSequence($value);
-                if ($sequence !== null) {
-                    $max = max($max, $sequence);
-                }
+            $sequence = $this->extractFormSequence((string) ($row->subject ?? ''));
+            if ($sequence !== null) {
+                $max = max($max, $sequence);
             }
         }
 
@@ -917,7 +909,6 @@ class IctRequestController extends Controller
                     'id',
                     'unit_id',
                     'requester_id',
-                    'form_number',
                     'subject',
                     'priority',
                     'status',
@@ -1111,10 +1102,10 @@ class IctRequestController extends Controller
 
     protected function buildFormViewData(?IctRequest $ictRequest = null): array
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = request()->user();
         $defaultStaffIct = $user->unit_id
-            ? \App\Models\User::query()
+            ? User::query()
                 ->where('unit_id', $user->unit_id)
                 ->where('role', UserRole::StaffIct)
                 ->where('is_active', true)
@@ -1286,7 +1277,7 @@ class IctRequestController extends Controller
 
         $unitCode = $user->unit?->code ?? 'UNIT';
         $defaultSubject = $ictRequest
-            ? ($ictRequest->subject ?: $ictRequest->form_number)
+            ? (string) $ictRequest->subject
             : $this->buildFormIdentifier((string) $unitCode, $this->resolveNextFormSequence((int) $user->unit_id, now()), now()->format('y'));
 
         return [
@@ -1542,7 +1533,7 @@ class IctRequestController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'integer'],
             'items.*.handover_type' => ['required', 'in:asset,non_asset'],
-            
+
             // Common fields
             'items.*.description' => ['nullable', 'string', 'max:1000'],
             'items.*.serah_terima' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
@@ -1551,7 +1542,7 @@ class IctRequestController extends Controller
             'items.*.serah_terima_temp_original_name' => ['nullable', 'string', 'max:255'],
             'items.*.surat_jalan_temp_path' => ['nullable', 'string', 'max:255'],
             'items.*.surat_jalan_temp_original_name' => ['nullable', 'string', 'max:255'],
-            
+
             // Asset-specific fields
             'items.*.dept' => ['nullable', 'string', 'max:255'],
             'items.*.model_specification' => ['nullable', 'string', 'max:500'],
@@ -1697,8 +1688,8 @@ class IctRequestController extends Controller
             'item' => $item,
         ])->setPaper('a4', 'portrait');
 
-        $fileName = 'berita-acara-' . $handover->id . '-' . Str::slug(substr($item->item_name, 0, 30)) . '.pdf';
-        $filePath = 'ict-handover-reports/' . $fileName;
+        $fileName = 'berita-acara-'.$handover->id.'-'.Str::slug(substr($item->item_name, 0, 30)).'.pdf';
+        $filePath = 'ict-handover-reports/'.$fileName;
 
         // Save to storage
         Storage::disk('public')->put($filePath, $pdf->output());

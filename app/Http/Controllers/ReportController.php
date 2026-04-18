@@ -16,23 +16,24 @@ use App\Models\IctRequestPpnkDocument;
 use App\Models\IncidentReport;
 use App\Models\ProjectRequest;
 use App\Models\RepairRequest;
-use App\Support\PublicFileUpload;
 use App\Models\Unit;
 use App\Models\User;
+use App\Support\PublicFileUpload;
 use App\Support\UnitScope;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
-use Illuminate\View\View;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\View\View;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -107,7 +108,7 @@ class ReportController extends Controller
                     ->orWhere('ict_request_items.item_name', 'like', $like)
                     ->orWhere('ict_request_items.brand_type', 'like', $like)
                     ->orWhere('ict_request_items.notes', 'like', $like)
-                    ->orWhere('ict_requests.form_number', 'like', $like)
+                    ->orWhere('ict_requests.subject', 'like', $like)
                     ->orWhere('ict_request_items.ppnk_number', 'like', $like)
                     ->orWhere('ict_request_items.ppm_name', 'like', $like)
                     ->orWhere('ict_request_items.ppm_number', 'like', $like)
@@ -203,7 +204,7 @@ class ReportController extends Controller
                 'ict_request_items.po_number as imported_po_number',
                 'ict_request_items.po_uploaded_at as imported_po_uploaded_at',
                 'ict_requests.id as ict_request_id',
-                'ict_requests.form_number',
+                'ict_requests.subject',
                 'ict_requests.status',
                 'ict_requests.print_count',
                 'ict_requests.final_signed_pdf_name',
@@ -331,15 +332,15 @@ class ReportController extends Controller
                             : '-'),
                     e($this->formatDate($row->form_created_at)),
                     $signedFormUrl
-                        ? '<a href="'.e($signedFormUrl).'" target="_blank" class="font-medium text-brand-700 hover:text-brand-800">'.e($row->final_signed_pdf_name ?: $row->form_number ?: 'Lihat Form').'</a>'
+                        ? '<a href="'.e($signedFormUrl).'" target="_blank" class="font-medium text-brand-700 hover:text-brand-800">'.e($row->final_signed_pdf_name ?: $row->subject ?: 'Lihat Form').'</a>'
                         : ($canManageMonitoringPpUploads
                             ? $this->renderMonitoringUploadTrigger(
                                 'Upload',
                                 'signed-form',
                                 route('reports.monitoring-pp.upload.signed-form', $row->ict_request_id),
                                 [
-                                    'itemName' => $row->form_number ?: 'Form ICT',
-                                    'formNumber' => $row->form_number ?: '',
+                                    'itemName' => $row->subject ?: 'Form ICT',
+                                    'formNumber' => $row->subject ?: '',
                                 ]
                             )
                             : '-'),
@@ -720,7 +721,7 @@ class ReportController extends Controller
                 'ict_request_items.po_number as imported_po_number',
                 'ict_request_items.po_uploaded_at as imported_po_uploaded_at',
                 'ict_requests.id as ict_request_id',
-                'ict_requests.form_number',
+                'ict_requests.subject',
                 'ict_requests.status',
                 'ict_requests.print_count',
                 'ict_requests.final_signed_pdf_name',
@@ -796,7 +797,7 @@ class ReportController extends Controller
                     $row->notes ?: '-',
                     $photoUrl ? ($row->photo_name ?: 'Lihat Foto') : '-',
                     $this->formatDate($row->form_created_at),
-                    $formUrl ? ($row->final_signed_pdf_name ?: $row->form_number ?: 'Lihat Form') : ($row->form_number ?: '-'),
+                    $formUrl ? ($row->final_signed_pdf_name ?: $row->subject ?: 'Lihat Form') : ($row->subject ?: '-'),
                     $this->formatDate($ppnkUploadedAt),
                     $ppnkUrl ? ($row->ppnk_attachment_name ?: 'Lihat Berkas') : ($row->ppnk_attachment_name ?: '-'),
                     $ppnkNumber ?: '-',
@@ -845,7 +846,7 @@ class ReportController extends Controller
             'import_file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
         ]);
 
-        $import = new MonitoringPpImport();
+        $import = new MonitoringPpImport;
         Excel::import($import, $validated['import_file']);
 
         if ($import->rows->isEmpty()) {
@@ -875,7 +876,6 @@ class ReportController extends Controller
                 $ictRequest = IctRequest::create([
                     'unit_id' => $unit->id,
                     'requester_id' => $requester->id,
-                    'form_number' => $formIdentifier,
                     'subject' => $formIdentifier,
                     'request_category' => $requestCategory,
                     'priority' => $priority,
@@ -1235,7 +1235,7 @@ class ReportController extends Controller
     {
         $candidate = trim($formNumber) !== '' ? trim($formNumber) : 'ICT-IMP-'.now()->format('YmdHis');
 
-        if (! IctRequest::query()->where('form_number', $candidate)->exists()) {
+        if (! IctRequest::query()->where('subject', $candidate)->exists()) {
             return $candidate;
         }
 
@@ -1266,7 +1266,7 @@ class ReportController extends Controller
     {
         $usedSequences = IctRequest::query()
             ->where('unit_id', $unitId)
-            ->pluck('form_number')
+            ->pluck('subject')
             ->map(fn ($formNumber) => $this->extractMonitoringPpFormSequence((string) $formNumber))
             ->filter(fn ($sequence) => $sequence !== null)
             ->sort()
@@ -1303,7 +1303,7 @@ class ReportController extends Controller
         }
 
         if (is_numeric($value)) {
-            return Carbon::instance(\PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $value));
+            return Carbon::instance(Date::excelToDateTimeObject((float) $value));
         }
 
         $normalized = Str::of((string) $value)
@@ -1336,7 +1336,7 @@ class ReportController extends Controller
         return $value === null || $value === '' ? null : (string) $value;
     }
 
-    protected function createImportedAssetAndHandover(IctRequest $ictRequest, IctRequestItem $item, User $user, \Illuminate\Support\Collection $row): void
+    protected function createImportedAssetAndHandover(IctRequest $ictRequest, IctRequestItem $item, User $user, Collection $row): void
     {
         $receivedAt = $this->parseImportDate($this->rowValue($row, 'tanggal_diterima', 'tanggalditerima')) ?? now();
         $reportGeneratedAt = $this->parseImportDate($this->rowValue($row, 'tanggal_pembuatan_ba', 'tanggal_pembuatanba')) ?? $receivedAt;
@@ -1500,7 +1500,7 @@ class ReportController extends Controller
 
     protected function formatDate($value): string
     {
-        return $value ? \Illuminate\Support\Carbon::parse($value)->format('d M Y') : '-';
+        return $value ? Carbon::parse($value)->format('d M Y') : '-';
     }
 
     protected function formatCurrency($value): string

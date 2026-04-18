@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    'ghostscript' => [
+        'binary' => env('GS_BINARY'),
+    ],
+
+    /*
+    | Kompres PDF tanpa binary server (shared hosting): rewrite lewat FPDI+TCPDF.
+    | Ghostscript (GS_BINARY) dipakai dulu jika ada; jika tidak, fallback ini.
+    */
+    'pdf' => [
+        'php_rewrite' => [
+            'enabled' => (bool) env('PDF_COMPRESS_PHP_ENABLED', true),
+            'max_pages' => (int) env('PDF_COMPRESS_PHP_MAX_PAGES', 50),
+            'timeout_seconds' => (int) env('PDF_COMPRESS_PHP_TIMEOUT', 60),
+        ],
+    ],
+
 ];

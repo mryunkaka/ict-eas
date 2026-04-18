@@ -63,6 +63,8 @@ class PublicFileUpload
 
         $file->storeAs($directory, $storedName, 'public');
 
+        self::optimizePdfIfApplicable($path);
+
         return [
             'name' => $displayName,
             'path' => $path,
@@ -116,6 +118,8 @@ class PublicFileUpload
 
         Storage::disk('public')->move($tempPath, $path);
 
+        self::optimizePdfIfApplicable($path);
+
         return [
             'name' => $displayName,
             'path' => $path,
@@ -138,12 +142,19 @@ class PublicFileUpload
         $displayName = self::buildDisplayName($file, $displayLength, $extension);
         $path = $file->storeAs($directory, $storedName, 'public');
 
+        self::optimizePdfIfApplicable($path);
+
         return [
             'name' => $displayName,
             'path' => $path,
-            'size' => $file->getSize(),
+            'size' => Storage::disk('public')->size($path),
             'mime' => $file->getClientMimeType() ?: 'application/octet-stream',
         ];
+    }
+
+    protected static function optimizePdfIfApplicable(string $relativePublicPath): void
+    {
+        PdfCompressor::maybeCompressPublicDiskFile($relativePublicPath);
     }
 
     protected static function shouldCompressImage(UploadedFile $file): bool

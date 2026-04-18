@@ -75,7 +75,6 @@ class IctRequestFormTest extends TestCase
         IctRequest::create([
             'unit_id' => $unit->id,
             'requester_id' => $user->id,
-            'form_number' => 'JAR1-FORM ICT-001',
             'subject' => 'JAR1-FORM ICT-001',
             'request_category' => 'hardware',
             'priority' => 'normal',
@@ -90,7 +89,6 @@ class IctRequestFormTest extends TestCase
         IctRequest::create([
             'unit_id' => $unit->id,
             'requester_id' => $user->id,
-            'form_number' => 'JAR1-FORM ICT-002',
             'subject' => 'JAR1-FORM ICT-002',
             'request_category' => 'hardware',
             'priority' => 'normal',
@@ -106,7 +104,7 @@ class IctRequestFormTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('JAR1-FORM ICT-001');
-        $response->assertSee('Filter tanggal aktif');
+        $response->assertSee('Terapkan');
         $response->assertSee('name="from" value="2026-01-01"', false);
         $response->assertSee('name="until" value="2026-06-30"', false);
 
@@ -271,8 +269,7 @@ class IctRequestFormTest extends TestCase
 
         $request = IctRequest::query()->with(['items', 'quotations'])->firstOrFail();
 
-        $this->assertSame('UNIT-01-FORM ICT-001', $request->subject);
-        $this->assertSame('UNIT-01-FORM ICT-001', $request->form_number);
+        $this->assertSame('UNIT-01-FORM ICT-001-26', $request->subject);
         $this->assertSame('Pemohon Manual', $request->requester_name);
         $this->assertSame('Departemen Manual', $request->department_name);
         $this->assertSame('2026-04-16', optional($request->needed_at)->toDateString());
@@ -496,7 +493,7 @@ class IctRequestFormTest extends TestCase
         $this->assertSame('Laptop Revisi', $request->items[0]->item_name);
     }
 
-    public function test_ict_request_subject_and_form_number_fill_smallest_missing_sequence_per_unit(): void
+    public function test_ict_request_subject_fills_smallest_missing_sequence_per_unit(): void
     {
         $unit = Unit::create(['code' => 'JAR1', 'name' => 'JAR 1', 'type' => 'unit', 'is_active' => true]);
         $user = User::factory()->create(['unit_id' => $unit->id, 'role' => UserRole::AdminIct]);
@@ -504,7 +501,6 @@ class IctRequestFormTest extends TestCase
         $first = IctRequest::create([
             'unit_id' => $unit->id,
             'requester_id' => $user->id,
-            'form_number' => 'JAR1-FORM ICT-001',
             'subject' => 'JAR1-FORM ICT-001',
             'request_category' => 'hardware',
             'priority' => 'normal',
@@ -517,7 +513,6 @@ class IctRequestFormTest extends TestCase
         $second = IctRequest::create([
             'unit_id' => $unit->id,
             'requester_id' => $user->id,
-            'form_number' => 'JAR1-FORM ICT-002',
             'subject' => 'JAR1-FORM ICT-002',
             'request_category' => 'hardware',
             'priority' => 'normal',
@@ -557,8 +552,7 @@ class IctRequestFormTest extends TestCase
         $latestRequest = IctRequest::query()->latest('id')->firstOrFail();
 
         $this->assertNotSame($first->id, $latestRequest->id);
-        $this->assertSame('JAR1-FORM ICT-002', $latestRequest->subject);
-        $this->assertSame('JAR1-FORM ICT-002', $latestRequest->form_number);
+        $this->assertSame('JAR1-FORM ICT-002-26', $latestRequest->subject);
     }
 
     public function test_revision_history_attachment_remains_available_after_request_is_updated(): void
@@ -692,13 +686,16 @@ class IctRequestFormTest extends TestCase
             'unit' => 'unit',
         ]);
 
+        $pdfBytes = "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n";
+
         $this->actingAs($user)
             ->post(route('forms.ict-requests.ppnk.store', $request), [
+                'ppnk_date' => now()->toDateString(),
                 'items' => [
                     [
                         'item_id' => $firstItem->id,
                         'ppnk_number' => 'PPNK-001/ICT/2026',
-                        'ppnk_attachment' => UploadedFile::fake()->create('ppnk-001.pdf', 300, 'application/pdf'),
+                        'ppnk_attachment' => UploadedFile::fake()->createWithContent('ppnk-001.pdf', $pdfBytes),
                     ],
                     [
                         'item_id' => $secondItem->id,

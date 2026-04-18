@@ -432,7 +432,7 @@
         @if ($isCopy)
             <div class="copy-watermark">DOCUMENT COPY</div>
         @endif
-        <div class="subject-stamp">{{ $ictRequest->subject ?: $ictRequest->form_number }}</div>
+        <div class="subject-stamp">{{ $ictRequest->subject }}</div>
         <div class="page-inner">
         <table class="header">
             <tr>

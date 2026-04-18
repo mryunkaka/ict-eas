@@ -72,10 +72,13 @@ class IctRequestProcurementWorkflowTest extends TestCase
         $ictRequest->refresh();
         $this->assertSame('checked_by_asmen', $ictRequest->status);
 
+        $pdfBytes = "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n";
+
         $this->actingAs($admin)
             ->post(route('approvals.ict.update', $ictRequest), [
                 'action' => 'upload_signed_pdf',
-                'signed_pdf' => UploadedFile::fake()->create('signed.pdf', 200, 'application/pdf'),
+                'signed_date' => '2026-04-16',
+                'signed_pdf' => UploadedFile::fake()->createWithContent('signed.pdf', $pdfBytes),
             ])
             ->assertRedirect();
         $ictRequest->refresh();
@@ -87,11 +90,12 @@ class IctRequestProcurementWorkflowTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('forms.ict-requests.ppnk.store', $ictRequest), [
+                'ppnk_date' => '2026-04-16',
                 'items' => [
                     [
                         'item_id' => $item->id,
                         'ppnk_number' => 'PPNK-001',
-                        'ppnk_attachment' => UploadedFile::fake()->create('ppnk-001.pdf', 150, 'application/pdf'),
+                        'ppnk_attachment' => UploadedFile::fake()->createWithContent('ppnk-001.pdf', $pdfBytes),
                     ],
                 ],
             ])
@@ -101,6 +105,7 @@ class IctRequestProcurementWorkflowTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('forms.ict-requests.verify-audit', $ictRequest), [
+                'audit_date' => '2026-04-16',
                 'items' => [
                     [
                         'item_id' => $item->id,
@@ -115,13 +120,14 @@ class IctRequestProcurementWorkflowTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('forms.ict-requests.ppm.store', $ictRequest), [
+                'ppm_date' => '2026-04-16',
                 'items' => [
                     [
                         'item_id' => $item->id,
                         'line_number' => 1,
                         'ppm_number' => 'PPM-001',
                         'pr_number' => 'PR-001',
-                        'ppm_attachment' => UploadedFile::fake()->create('ppm-001.pdf', 150, 'application/pdf'),
+                        'ppm_attachment' => UploadedFile::fake()->createWithContent('ppm-001.pdf', $pdfBytes),
                     ],
                 ],
             ])
@@ -131,11 +137,12 @@ class IctRequestProcurementWorkflowTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('forms.ict-requests.po.store', $ictRequest), [
+                'po_date' => '2026-04-16',
                 'items' => [
                     [
                         'item_id' => $item->id,
                         'po_number' => 'PO-001',
-                        'po_attachment' => UploadedFile::fake()->create('po-001.pdf', 150, 'application/pdf'),
+                        'po_attachment' => UploadedFile::fake()->createWithContent('po-001.pdf', $pdfBytes),
                     ],
                 ],
             ])
@@ -144,7 +151,16 @@ class IctRequestProcurementWorkflowTest extends TestCase
         $this->assertSame('progress_waiting_goods', $ictRequest->status);
 
         $this->actingAs($admin)
+            ->post(route('forms.ict-requests.confirm-goods-arrival', $ictRequest), [
+                'goods_arrived_date' => '2026-04-18',
+            ])
+            ->assertRedirect();
+        $ictRequest->refresh();
+        $this->assertSame('progress_goods_arrived', $ictRequest->status);
+
+        $this->actingAs($admin)
             ->post(route('forms.ict-requests.goods-receipt.store', $ictRequest), [
+                'goods_receipt_date' => '2026-04-18',
                 'items' => [
                     [
                         'item_id' => $item->id,

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Tools;
 
 use App\Http\Controllers\Controller;
+use App\Services\PublicDiskMaintenanceService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -36,7 +38,7 @@ class SqlSyncController extends Controller
         'project_requests',
     ];
 
-    public function index(Request $request): View
+    public function index(Request $request, PublicDiskMaintenanceService $maintenance): View
     {
         abort_unless($request->user()->canManageUsers(), 403);
 
@@ -52,10 +54,74 @@ class SqlSyncController extends Controller
                 ];
             });
 
+        $stats = $maintenance->publicDiskStats();
+        $orphanPaths = $maintenance->orphanPaths();
+
         return view('tools.sql-sync.index', [
             'databaseName' => $databaseName,
             'tables' => $tables,
+            'stats' => $stats,
+            'orphanCount' => count($orphanPaths),
+            'orphanPreview' => array_slice($orphanPaths, 0, 50),
+            'ghostscriptConfigured' => is_string(config('services.ghostscript.binary')) && config('services.ghostscript.binary') !== '',
+            'pdfPhpRewriteEnabled' => (bool) config('services.pdf.php_rewrite.enabled', true),
         ]);
+    }
+
+    public function runSql(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->canManageUsers(), 403);
+
+        $validated = $request->validate([
+            'sql' => ['required', 'string', 'max:524288'],
+        ]);
+
+        $statements = $this->splitSqlStatements($validated['sql']);
+
+        if ($statements === []) {
+            return back()->withErrors(['sql' => 'Tidak ada pernyataan SQL yang valid.']);
+        }
+
+        foreach ($statements as $statement) {
+            if ($this->isForbiddenStatement($statement)) {
+                return back()->withErrors([
+                    'sql' => 'Pernyataan ditolak demi keamanan: '.Str::limit($statement, 200),
+                ]);
+            }
+        }
+
+        foreach ($statements as $statement) {
+            try {
+                DB::unprepared($statement);
+            } catch (\Throwable $e) {
+                return back()->withErrors(['sql' => $e->getMessage()]);
+            }
+        }
+
+        return back()->with('status', 'SQL berhasil dijalankan ('.count($statements).' pernyataan).');
+    }
+
+    public function cleanOrphans(Request $request, PublicDiskMaintenanceService $maintenance): RedirectResponse
+    {
+        abort_unless($request->user()->canManageUsers(), 403);
+
+        $dryRun = (string) $request->input('dry_run', '1') !== '0';
+
+        if (! $dryRun && ! $request->boolean('confirm_delete')) {
+            return back()->withErrors(['clean' => 'Konfirmasi diperlukan untuk menghapus file orphan.']);
+        }
+
+        $result = $maintenance->deleteOrphans($dryRun);
+
+        if ($dryRun) {
+            return back()->with('orphan_report', [
+                'dry_run' => true,
+                'paths' => $result['paths'],
+                'count' => count($result['paths']),
+            ]);
+        }
+
+        return back()->with('status', "File orphan terhapus: {$result['deleted']} dari ".count($result['paths']).' terdeteksi.');
     }
 
     public function download(Request $request): StreamedResponse
@@ -94,6 +160,7 @@ class SqlSyncController extends Controller
 
                 if ($columns === []) {
                     echo "-- Skipped: no columns detected.\n\n";
+
                     continue;
                 }
 
@@ -124,7 +191,7 @@ class SqlSyncController extends Controller
                         ));
 
                         $updates = implode(', ', array_map(
-                            fn (string $column) => sprintf("`%s` = VALUES(`%s`)", $column, $column),
+                            fn (string $column) => sprintf('`%s` = VALUES(`%s`)', $column, $column),
                             $updateColumns
                         ));
 
@@ -153,6 +220,37 @@ class SqlSyncController extends Controller
         }, $fileName, [
             'Content-Type' => 'application/sql; charset=UTF-8',
         ]);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function splitSqlStatements(string $sql): array
+    {
+        $sql = preg_replace('/^\xEF\xBB\xBF/', '', $sql) ?? $sql;
+        $sql = preg_replace('/\/\*[\s\S]*?\*\//', '', (string) $sql) ?? '';
+        $lines = preg_split('/\R/', $sql) ?: [];
+        $lines = array_map(function (string $line) {
+            return preg_replace('/--.*$/', '', $line) ?? $line;
+        }, $lines);
+
+        $sql = implode("\n", $lines);
+
+        $parts = preg_split('/;\s*(?=\R|$)/u', trim($sql)) ?: [];
+
+        return collect($parts)
+            ->map(fn ($s) => trim((string) $s))
+            ->filter(fn (string $s) => $s !== '')
+            ->values()
+            ->all();
+    }
+
+    private function isForbiddenStatement(string $statement): bool
+    {
+        return (bool) preg_match(
+            '/\b(?:DROP\s+DATABASE|CREATE\s+DATABASE|GRANT\b|REVOKE\b|INTO\s+OUTFILE|LOAD\s+DATA\b|SYSTEM\b)\b/i',
+            $statement
+        );
     }
 
     /**

@@ -3,7 +3,7 @@
         <x-card>
             <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                 <form method="GET" class="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_auto]">
-                    <x-input name="search" label="Cari" :value="request('search')" placeholder="Form number / subject / asset / serial / penerima" />
+                    <x-input name="search" label="Cari" :value="request('search')" placeholder="Subjek form ICT / asset / serial / penerima" />
                     <label class="block space-y-2">
                         <span class="text-sm font-medium text-ink-700">Tampilkan</span>
                         <select name="per_page" class="w-full rounded-2xl border border-ink-200 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500">
@@ -32,7 +32,7 @@
                 <table class="min-w-full divide-y divide-ink-100 text-sm">
                     <thead class="bg-ink-50 text-left text-ink-500">
                         <tr>
-                            <th class="px-4 py-3">Form</th>
+                            <th class="px-4 py-3">Subjek</th>
                             <th class="px-4 py-3">Barang</th>
                             <th class="px-4 py-3">Asset</th>
                             <th class="px-4 py-3">Penerima</th>
@@ -44,8 +44,7 @@
                         @forelse ($handovers as $handover)
                             <tr>
                                 <td class="px-4 py-3">
-                                    <div class="font-medium text-ink-900">{{ $handover->ictRequest?->form_number ?? '-' }}</div>
-                                    <div class="mt-1 text-xs text-ink-500">{{ $handover->ictRequest?->subject ?? '-' }}</div>
+                                    <div class="font-medium text-ink-900">{{ $handover->ictRequest?->subject ?? '-' }}</div>
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="font-medium text-ink-900">{{ $handover->ictRequestItem?->item_name ?? '-' }}</div>
