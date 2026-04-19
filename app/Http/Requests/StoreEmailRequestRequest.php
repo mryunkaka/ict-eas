@@ -21,9 +21,15 @@ class StoreEmailRequestRequest extends FormRequest
             'employee_name' => ['required', 'string', 'max:255'],
             'department_name' => ['required', 'string', 'max:255'],
             'job_title' => ['nullable', 'string', 'max:255'],
-            'requested_email' => ['required', 'email', 'max:255'],
-            'access_level' => ['required', 'in:internal,external'],
             'justification' => ['required', 'string'],
+            'diketahui_dept_head_name' => ['nullable', 'string', 'max:255'],
+            'diketahui_dept_head_title' => ['nullable', 'string', 'max:255'],
+            'diketahui_div_head_name' => ['nullable', 'string', 'max:255'],
+            'diketahui_div_head_title' => ['nullable', 'string', 'max:255'],
+            'disetujui_hrga_head_name' => ['nullable', 'string', 'max:255'],
+            'disetujui_hrga_head_title' => ['nullable', 'string', 'max:255'],
+            'pelaksana_ict_head_name' => ['nullable', 'string', 'max:255'],
+            'pelaksana_ict_head_title' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

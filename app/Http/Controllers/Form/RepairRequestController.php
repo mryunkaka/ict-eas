@@ -7,6 +7,7 @@ use App\Http\Requests\StoreRepairRequestRequest;
 use App\Models\Asset;
 use App\Models\RepairRequest;
 use App\Support\UnitScope;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -15,26 +16,57 @@ class RepairRequestController extends Controller
 {
     public function index(Request $request): View
     {
-        $sort = in_array($request->string('sort')->toString(), ['problem_summary', 'priority', 'status', 'created_at'], true) ? $request->string('sort')->toString() : 'created_at';
-        $direction = $request->string('direction')->toString() === 'asc' ? 'asc' : 'desc';
-        $perPage = in_array((int) $request->integer('per_page', 10), [10, 20, 30, 50, 100], true) ? (int) $request->integer('per_page', 10) : 10;
-        $search = $request->string('search')->toString();
+        $currentYear = now()->year;
+        $isFirstSemester = now()->month <= 6;
+        $defaultStartDate = Carbon::create($currentYear, $isFirstSemester ? 1 : 7, 1)->startOfDay();
+        $defaultEndDate = Carbon::create($currentYear, $isFirstSemester ? 6 : 12, 1)->endOfMonth()->endOfDay();
+
+        $validated = $request->validate([
+            'from' => ['nullable', 'date'],
+            'until' => ['nullable', 'date', 'after_or_equal:from'],
+            'sort' => ['nullable', 'in:problem_summary,priority,status,created_at'],
+            'direction' => ['nullable', 'in:asc,desc'],
+        ]);
+
+        $startDate = isset($validated['from']) && $validated['from'] !== ''
+            ? Carbon::parse($validated['from'])->startOfDay()
+            : $defaultStartDate;
+        $endDate = isset($validated['until']) && $validated['until'] !== ''
+            ? Carbon::parse($validated['until'])->endOfDay()
+            : $defaultEndDate;
+        $sort = $validated['sort'] ?? 'created_at';
+        $direction = $validated['direction'] ?? 'desc';
 
         $requests = UnitScope::apply(
             RepairRequest::query()
-                ->select(['id', 'unit_id', 'requester_id', 'asset_id', 'problem_type', 'priority', 'status', 'created_at'])
+                ->select([
+                    'id',
+                    'unit_id',
+                    'requester_id',
+                    'asset_id',
+                    'problem_type',
+                    'problem_summary',
+                    'priority',
+                    'status',
+                    'created_at',
+                ])
                 ->with(['requester:id,name', 'asset:id,name'])
-                ->when($search !== '', function ($query) use ($search) {
-                    $query->where(function ($inner) use ($search) {
-                        $inner->where('problem_summary', 'like', "%{$search}%")
-                            ->orWhere('problem_type', 'like', "%{$search}%")
-                            ->orWhere('status', 'like', "%{$search}%");
-                    });
-                }),
+                ->whereBetween('created_at', [$startDate, $endDate]),
             auth()->user()
-        )->orderBy($sort, $direction)->paginate($perPage)->withQueryString();
+        )
+            ->orderBy($sort, $direction)
+            ->orderByDesc('id')
+            ->get();
 
-        return view('forms.repair-requests.index', compact('requests', 'sort', 'direction', 'perPage', 'search'));
+        return view('forms.repair-requests.index', [
+            'requests' => $requests,
+            'sort' => $sort,
+            'direction' => $direction,
+            'filters' => [
+                'from' => $startDate->toDateString(),
+                'until' => $endDate->toDateString(),
+            ],
+        ]);
     }
 
     public function create(): View

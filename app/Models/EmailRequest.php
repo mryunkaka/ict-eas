@@ -16,6 +16,14 @@ class EmailRequest extends Model
         'requested_email',
         'access_level',
         'justification',
+        'diketahui_dept_head_name',
+        'diketahui_dept_head_title',
+        'diketahui_div_head_name',
+        'diketahui_div_head_title',
+        'disetujui_hrga_head_name',
+        'disetujui_hrga_head_title',
+        'pelaksana_ict_head_name',
+        'pelaksana_ict_head_title',
         'status',
         'manager_approved_by',
         'hrga_verified_by',
@@ -23,6 +31,11 @@ class EmailRequest extends Model
         'manager_approved_at',
         'hrga_verified_at',
         'ict_processed_at',
+        'full_ttd_signed_at',
+        'full_ttd_path',
+        'full_ttd_name',
+        'full_ttd_size',
+        'full_ttd_mime',
     ];
 
     protected function casts(): array
@@ -31,6 +44,8 @@ class EmailRequest extends Model
             'manager_approved_at' => 'datetime',
             'hrga_verified_at' => 'datetime',
             'ict_processed_at' => 'datetime',
+            'full_ttd_signed_at' => 'datetime',
+            'full_ttd_size' => 'integer',
         ];
     }
 

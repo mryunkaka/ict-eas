@@ -3,8 +3,8 @@
 @endphp
 
 <x-app-layout>
-    <div class="space-y-6">
-        <x-card :title="$formMode === 'edit' ? 'Edit Form Permintaan Fasilitas ICT' : 'Form Permintaan Fasilitas ICT'" subtitle="Draft tersimpan otomatis di browser sampai disubmit atau dihapus">
+    <div class="ui-page-workspace space-y-6">
+        <x-card :title="$formMode === 'edit' ? 'Edit Form Permintaan Fasilitas ICT' : 'Form Permintaan Fasilitas ICT'" subtitle="Draft tersimpan otomatis di browser sampai disubmit atau dihapus" class="mx-auto w-full max-w-7xl">
             <form
                 method="POST"
                 action="{{ $formAction }}"
@@ -361,7 +361,7 @@
                     </div>
                 </x-card>
 
-                <div class="flex flex-wrap gap-3">
+                <div class="flex flex-wrap items-center gap-3 border-t border-ink-100 pt-4">
                     <x-button type="submit">{{ $formMode === 'edit' ? 'Update' : 'Submit' }}</x-button>
                     <x-button type="button" variant="secondary" x-on:click="clearDraft()">Clear Data</x-button>
                     <x-button :href="route('forms.ict-requests.index')" variant="secondary">Kembali</x-button>

@@ -1,13 +1,13 @@
 <x-app-layout>
-    <div class="space-y-6" x-data="{ selected: '{{ (string) request('ict_request_id') }}' }">
-        <x-card title="Buat Berita Acara Serah Terima" subtitle="Input manual BA serah terima (asset/non-asset) dan generate PDF.">
+    <div class="ui-page-workspace space-y-6" x-data="{ selected: '{{ (string) request('ict_request_id') }}' }">
+        <x-card title="Buat Berita Acara Serah Terima" subtitle="Input manual BA serah terima (asset/non-asset) dan generate PDF." class="mx-auto w-full max-w-6xl">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-sm text-ink-600">Pilih Form ICT dulu agar itemnya muncul.</p>
                 <x-button :href="route('forms.asset-handovers.index')" variant="secondary">Kembali</x-button>
             </div>
         </x-card>
 
-        <x-card>
+        <x-card class="mx-auto w-full max-w-6xl">
             <form method="POST" action="{{ route('forms.asset-handovers.store') }}" enctype="multipart/form-data" class="space-y-6">
                 @csrf
 
@@ -89,7 +89,8 @@
                     </div>
                 </div>
 
-                <div class="flex justify-end gap-2">
+                <div class="flex flex-wrap items-center justify-end gap-2 border-t border-ink-100 pt-4">
+                    <x-button :href="route('forms.asset-handovers.index')" variant="secondary">Kembali</x-button>
                     <x-button type="submit"><x-heroicon-o-check-circle class="mr-2 h-4 w-4" />Simpan & Generate PDF</x-button>
                 </div>
             </form>

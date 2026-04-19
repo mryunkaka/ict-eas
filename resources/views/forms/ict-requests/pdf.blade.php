@@ -432,7 +432,9 @@
         @if ($isCopy)
             <div class="copy-watermark">DOCUMENT COPY</div>
         @endif
-        <div class="subject-stamp">{{ $ictRequest->subject }}</div>
+        <div class="subject-stamp">
+            {{ explode('-', $ictRequest->subject)[2] ?? '' }}
+        </div>
         <div class="page-inner">
         <table class="header">
             <tr>
@@ -444,7 +446,7 @@
                 <td class="title-cell">PERMOHONAN FASILITAS ICT</td>
                 <td class="code-cell">
                     FMR-ICT-01<br>
-                    {{ $revisionLabel }}
+                    REV. 00
                 </td>
             </tr>
         </table>

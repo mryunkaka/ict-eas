@@ -517,12 +517,12 @@
                                         <tr>
                                             <td class="label">Nama</td>
                                             <td class="colon">:</td>
-                                            <td>{{ $handover->witness_name ?: '' }}</td>
+                                            <td>{{ $handover->deliverer_name ?: '' }}</td>
                                         </tr>
                                         <tr>
                                             <td class="label">Divisi/Dept.</td>
                                             <td class="colon">:</td>
-                                            <td>{{ $handover->dept ?: '' }}</td>
+                                            <td>GA</td>
                                         </tr>
                                         <tr>
                                             <td class="label">Tanda tangan</td>
@@ -533,7 +533,7 @@
                                             <td colspan="3" class="paren"><span class="paren-wrap">(<span class="paren-line"></span>)</span></td>
                                         </tr>
                                         <tr>
-                                            <td colspan="3" class="position-label">{{ $handover->witness_position ?: '' }}</td>
+                                            <td colspan="3" class="position-label">{{ $handover->deliverer_position ?: '' }}</td>
                                         </tr>
                                         <tr>
                                             <td class="label">Tanggal</td>
@@ -547,12 +547,12 @@
                                         <tr>
                                             <td class="label">Nama</td>
                                             <td class="colon">:</td>
-                                            <td>{{ $handover->deliverer_name ?: '' }}</td>
+                                            <td>{{ $handover->witness_name ?: '' }}</td>
                                         </tr>
                                         <tr>
                                             <td class="label">Divisi/Dept.</td>
                                             <td class="colon">:</td>
-                                            <td>{{ $handover->dept ?: '' }}</td>
+                                            <td>ICT</td>
                                         </tr>
                                         <tr>
                                             <td class="label">Tanda tangan</td>
@@ -563,7 +563,7 @@
                                             <td colspan="3" class="paren"><span class="paren-wrap">(<span class="paren-line"></span>)</span></td>
                                         </tr>
                                         <tr>
-                                            <td colspan="3" class="position-label">{{ $handover->deliverer_position ?: '' }}</td>
+                                            <td colspan="3" class="position-label">{{ $handover->witness_position ?: '' }}</td>
                                         </tr>
                                         <tr>
                                             <td class="label">Tanggal</td>
